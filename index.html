@@ -302,19 +302,9 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
   </div>
 
-  <!-- PREVIEW REALIZADO -->
-  <div class="tcard" id="cardRealizadoPreview" style="display:none">
-    <div class="tcard-hdr">
-      <h3 id="tituloRealizadoPreview">Realizado — —</h3>
-    </div>
-    <div class="tscroll"><table>
-      <thead><tr>
-        <th style="text-align:left">Código</th>
-        <th style="text-align:left">Descrição</th>
-        <th>Valor</th>
-      </tr></thead>
-      <tbody id="bodyRealizadoPreview"></tbody>
-    </table></div>
+  <!-- PREVIEW REALIZADO lado a lado -->
+  <div id="cardRealizadoPreview" style="display:none">
+    <div id="bodyRealizadoPreview" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;"></div>
   </div>
 </div>
 
@@ -804,29 +794,43 @@ function clearRealizadoMes() {
 
 function renderRealizadoPreview() {
   const card = document.getElementById('cardRealizadoPreview');
+  const cont = document.getElementById('bodyRealizadoPreview');
   const keys = Object.keys(REALIZADO).filter(k => REALIZADO[k] && REALIZADO[k].length).sort((a,b) => {
     const [aa,am] = a.split('-').map(Number);
     const [ba,bm] = b.split('-').map(Number);
     return aa !== ba ? aa - ba : am - bm;
   });
 
-  if (!keys.length) { card.style.display='none'; return; }
+  if (!keys.length) { card.style.display='none'; cont.innerHTML=''; return; }
   card.style.display='';
-  document.getElementById('tituloRealizadoPreview').textContent = 'Realizado — Dados Importados';
 
-  let html='';
-  keys.forEach(key => {
+  cont.innerHTML = keys.map(key => {
     const [ano, mes] = key.split('-');
     const dados = REALIZADO[key];
     let total = 0;
-    html += `<tr class="tr-group"><td colspan="3">${MESES_FULL[mes-1]}/${ano} — ${dados.length} lançamentos</td></tr>`;
-    dados.forEach(r => {
+    const rows = dados.map(r => {
       total += r.valor;
-      html += `<tr><td>${r.cod}</td><td>${r.desc}</td><td>${fmtR(r.valor)}</td></tr>`;
-    });
-    html += `<tr class="tr-total"><td></td><td>Total ${MESES[mes-1]}/${ano}</td><td>${fmtR(total)}</td></tr>`;
-  });
-  document.getElementById('bodyRealizadoPreview').innerHTML = html;
+      return `<tr><td>${r.cod}</td><td>${r.desc}</td><td>${fmtR(r.valor)}</td></tr>`;
+    }).join('');
+    return `
+      <div class="tcard" style="flex:1;min-width:320px;max-width:480px">
+        <div class="tcard-hdr">
+          <h3>${MESES_FULL[mes-1]}/${ano}</h3>
+          <span style="font-size:11px;color:var(--text3)">${dados.length} lançamentos</span>
+        </div>
+        <div class="tscroll" style="max-height:400px"><table>
+          <thead><tr>
+            <th style="text-align:left">Código</th>
+            <th style="text-align:left">Descrição</th>
+            <th>Valor</th>
+          </tr></thead>
+          <tbody>
+            ${rows}
+            <tr class="tr-total"><td></td><td>Total</td><td>${fmtR(total)}</td></tr>
+          </tbody>
+        </table></div>
+      </div>`;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
