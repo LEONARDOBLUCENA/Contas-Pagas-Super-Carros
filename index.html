@@ -197,7 +197,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   </nav>
 </header>
 
-<div class="filters-bar">
+<div class="filters-bar" id="filtersBar">
   <span class="fb-label">Ano</span>
   <select id="selAno" onchange="onAnoChange()"></select>
 
@@ -230,7 +230,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   <div class="charts-row" style="grid-template-columns:1fr">
     <div class="chart-card">
       <h3>Orçado vs Realizado — Mês a Mês</h3>
-      <canvas id="chartMensal" height="120"></canvas>
+      <canvas id="chartMensal" style="height:260px"></canvas>
     </div>
   </div>
   <div class="tcard">
@@ -420,9 +420,12 @@ function setTab(t, el) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + t).classList.add('active');
   el.classList.add('active');
+  document.getElementById('filtersBar').style.display = t === 'dashboard' ? 'flex' : 'none';
   if (t === 'orcamento') renderOrcEdit();
   if (t === 'realizado') renderRealizadoPreview();
 }
+
+function closeMsd() { document.getElementById('msdDrop').classList.remove('open'); }
 
 // ═══════════════════════════════════════════════════════════════════════
 // MSD MULTISELECT MESES
@@ -446,12 +449,13 @@ function msdChange(cb) {
   else selectedMeses = selectedMeses.filter(x => x !== v);
   selectedMeses.sort((a,b) => a-b);
   updateMsdBtn();
+  closeMsd();
   render();
 }
 
-function msdAll()  { selectedMeses=[1,2,3,4,5,6,7,8,9,10,11,12]; updateMsdUI(); render(); }
-function msdNone() { selectedMeses=[]; updateMsdUI(); render(); }
-function msdQ(q)   { const m={1:[1,2,3],2:[4,5,6],3:[7,8,9],4:[10,11,12]}; selectedMeses=[...m[q]]; updateMsdUI(); render(); }
+function msdAll()  { selectedMeses=[1,2,3,4,5,6,7,8,9,10,11,12]; updateMsdUI(); closeMsd(); render(); }
+function msdNone() { selectedMeses=[]; updateMsdUI(); closeMsd(); render(); }
+function msdQ(q)   { const m={1:[1,2,3],2:[4,5,6],3:[7,8,9],4:[10,11,12]}; selectedMeses=[...m[q]]; updateMsdUI(); closeMsd(); render(); }
 
 function updateMsdUI() {
   document.querySelectorAll('#msdItems input').forEach(cb => {
@@ -659,19 +663,26 @@ function renderCharts(ano, meses) {
   const gc = dark ? '#3a3a38' : '#e8e7e3';
   const tc = dark ? '#9a9a94' : '#9a9a94';
 
-  // chart 1: orc vs real por mês
-  const dOrc = MESES.map((_,i) => getContas(ano).reduce((s,c) => s+getOrcadoPeriodo(c.cod,ano,[i+1]),0));
-  const dReal = MESES.map((_,i) => getContas(ano).reduce((s,c) => s+getRealizadoPeriodo(c.cod,ano,[i+1]),0));
-  const ctx1 = document.getElementById('chartMensal').getContext('2d');
-  if (chartMensal) chartMensal.destroy();
-  chartMensal = new Chart(ctx1, {
-    type:'bar',
-    data:{labels:MESES,datasets:[
-      {label:'Orçado',data:dOrc,backgroundColor:'rgba(180,83,9,0.25)',borderColor:'#b45309',borderWidth:1},
-      {label:'Realizado',data:dReal,backgroundColor:'rgba(14,125,85,0.35)',borderColor:'#0e7d55',borderWidth:1},
+  const dOrc  = MESES.map((_,i) => getContas(ano).reduce((s,c) => s + getOrcadoPeriodo(c.cod, ano, [i+1]), 0));
+  const dReal = MESES.map((_,i) => getContas(ano).reduce((s,c) => s + getRealizadoPeriodo(c.cod, ano, [i+1]), 0));
+
+  const canvas = document.getElementById('chartMensal');
+  if (chartMensal) { chartMensal.destroy(); chartMensal = null; }
+  chartMensal = new Chart(canvas, {
+    type: 'bar',
+    data: { labels: MESES, datasets: [
+      { label:'Orçado',    data: dOrc,  backgroundColor:'rgba(180,83,9,0.25)',  borderColor:'#b45309', borderWidth:1 },
+      { label:'Realizado', data: dReal, backgroundColor:'rgba(14,125,85,0.35)', borderColor:'#0e7d55', borderWidth:1 },
     ]},
-    options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{size:11}}}},
-      scales:{x:{ticks:{color:tc},grid:{color:gc}},y:{ticks:{color:tc,callback:v=>'R$'+(v/1000).toFixed(0)+'k'},grid:{color:gc}}}}
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: tc, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: tc }, grid: { color: gc } },
+        y: { ticks: { color: tc, callback: v => 'R$' + (v/1000).toFixed(0) + 'k' }, grid: { color: gc } }
+      }
+    }
   });
 }
 
