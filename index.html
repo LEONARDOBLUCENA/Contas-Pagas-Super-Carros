@@ -341,6 +341,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     <div class="tscroll"><table class="edit-table">
       <thead><tr>
         <th style="text-align:left">Cód.</th><th style="text-align:left">Descrição</th>
+        <th style="text-align:left">Grupo</th>
         <th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th><th>Mai</th><th>Jun</th>
         <th>Jul</th><th>Ago</th><th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
       </tr></thead>
@@ -641,7 +642,6 @@ function render() {
   const meses = selectedMeses.length ? selectedMeses : [1,2,3,4,5,6,7,8,9,10,11,12];
   renderKPIs(ano, meses);
   renderResumo(ano, meses);
-  renderContas(ano, meses);
   renderCharts(ano, meses);
 }
 
@@ -966,20 +966,19 @@ function renderRealizadoPreview() {
     cods.forEach(cod => {
       const cels = keys.map(k => {
         const v = valMap[`${cod}|${k}`];
-        return v !== undefined ? `<td>${fmtR(v)}</td>` : `<td style="color:var(--text3)">—</td>`;
+        return v !== undefined ? `<td>${fmtR(v,false)}</td>` : `<td style="color:var(--text3)">—</td>`;
       }).join('');
       bodyHtml += `<tr><td>${cod}</td><td>${codMap.get(cod)}</td>${cels}</tr>`;
     });
     // subtotal grupo por mês
     const subCels = keys.map(k => {
       const tot = cods.reduce((s,cod) => s + (valMap[`${cod}|${k}`] || 0), 0);
-      return `<td>${fmtR(tot)}</td>`;
+      return `<td>${fmtR(tot,false)}</td>`;
     }).join('');
     bodyHtml += `<tr class="tr-total" style="font-size:12px"><td colspan="2">↳ Total ${gnome}</td>${subCels}</tr>`;
   });
 
-  // total geral por mês
-  const totCels = keys.map(k => `<td>${fmtR((REALIZADO[k]||[]).reduce((s,r)=>s+r.valor,0))}</td>`).join('');
+  const totCels = keys.map(k => `<td>${fmtR((REALIZADO[k]||[]).reduce((s,r)=>s+r.valor,0),false)}</td>`).join('');
   bodyHtml += `<tr class="tr-total"><td colspan="2">TOTAL GERAL</td>${totCels}</tr>`;
 
   scroll.innerHTML = `<table>
@@ -1015,10 +1014,20 @@ function renderOrcEdit() {
 
   const ano = sel.value;
   const rows = ORCADO[ano] || [];
-  let html='';
+  let html='', ultimoGrupo='';
   rows.forEach((row, idx) => {
+    const gnome = getGrupoNome(row.cod);
+    if (gnome !== ultimoGrupo) {
+      html += `<tr class="tr-group"><td colspan="15">▸ ${gnome}</td></tr>`;
+      ultimoGrupo = gnome;
+    }
     const vals=row.valores.map((v,i)=>`<td><input type="number" step="0.01" value="${v}" data-ano="${ano}" data-idx="${idx}" data-mi="${i}" onchange="orcFieldChange(this)"></td>`).join('');
-    html+=`<tr><td>${row.cod}</td><td><input type="text" value="${row.desc}" data-ano="${ano}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="orcFieldChange(this)"></td>${vals}</tr>`;
+    html+=`<tr>
+      <td>${row.cod}</td>
+      <td><input type="text" value="${row.desc}" data-ano="${ano}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="orcFieldChange(this)"></td>
+      <td style="font-size:11px;color:var(--text3);text-align:left">${gnome}</td>
+      ${vals}
+    </tr>`;
   });
   document.getElementById('bodyOrcEdit').innerHTML = html;
 }
