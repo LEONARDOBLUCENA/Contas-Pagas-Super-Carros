@@ -271,7 +271,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 
 <!-- ══ REALIZADO ══ -->
 <div id="tab-realizado" class="tab-panel">
-  <div class="imp-box" style="max-width:520px">
+  <div class="imp-box" style="max-width:520px;margin-bottom:20px">
     <h3>💳 Importar Contas Pagas Realizado</h3>
     <p>Selecione mês/ano e cole do Excel:<br>
     <strong>Código | Descrição | Valor</strong><br>
@@ -279,7 +279,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     <div class="row">
       <div class="field">
         <label>Mês</label>
-        <select id="impMes">
+        <select id="impMes" onchange="renderRealizadoPreview()">
           <option value="1">Janeiro</option><option value="2">Fevereiro</option>
           <option value="3">Março</option><option value="4">Abril</option>
           <option value="5">Maio</option><option value="6">Junho</option>
@@ -290,7 +290,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
       </div>
       <div class="field">
         <label>Ano</label>
-        <select id="impAno"></select>
+        <select id="impAno" onchange="renderRealizadoPreview()"></select>
       </div>
     </div>
     <textarea id="txtRealizado" placeholder="Cole aqui o realizado do Excel (Tab-separado)..." style="min-height:160px"></textarea>
@@ -300,6 +300,21 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     </div>
     <div id="msgRealizado"></div>
     <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
+  </div>
+
+  <!-- PREVIEW REALIZADO -->
+  <div class="tcard" id="cardRealizadoPreview" style="display:none">
+    <div class="tcard-hdr">
+      <h3 id="tituloRealizadoPreview">Realizado — —</h3>
+    </div>
+    <div class="tscroll"><table>
+      <thead><tr>
+        <th style="text-align:left">Código</th>
+        <th style="text-align:left">Descrição</th>
+        <th>Valor</th>
+      </tr></thead>
+      <tbody id="bodyRealizadoPreview"></tbody>
+    </table></div>
   </div>
 </div>
 
@@ -434,6 +449,7 @@ function setTab(t, el) {
   document.getElementById('tab-' + t).classList.add('active');
   el.classList.add('active');
   if (t === 'orcamento') renderOrcEdit();
+  if (t === 'realizado') renderRealizadoPreview();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -768,7 +784,7 @@ function importRealizado() {
   REALIZADO[key] = parsed;
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
   addAnoToSelects(parseInt(ano));
-  updateInfos(); render();
+  updateInfos(); render(); renderRealizadoPreview();
   showMsg('msgRealizado',`✓ ${ok} lançamentos importados para ${MESES_FULL[mes-1]}/${ano}.`,'ok');
   document.getElementById('txtRealizado').value='';
 }
@@ -781,8 +797,29 @@ function clearRealizadoMes() {
   if (!confirm(`Limpar realizado de ${MESES_FULL[mes-1]}/${ano}?`)) return;
   delete REALIZADO[key];
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
-  updateInfos(); render();
+  updateInfos(); render(); renderRealizadoPreview();
   showMsg('msgRealizado',`Dados de ${MESES_FULL[mes-1]}/${ano} removidos.`,'ok');
+}
+
+function renderRealizadoPreview() {
+  const mes = parseInt(document.getElementById('impMes').value);
+  const ano = document.getElementById('impAno').value;
+  const key = `${ano}-${mes}`;
+  const card = document.getElementById('cardRealizadoPreview');
+  const dados = REALIZADO[key] || [];
+
+  if (!dados.length) { card.style.display='none'; return; }
+  card.style.display='';
+  document.getElementById('tituloRealizadoPreview').textContent =
+    `Realizado — ${MESES_FULL[mes-1]}/${ano}`;
+
+  let html='', total=0;
+  dados.forEach(r => {
+    total += r.valor;
+    html += `<tr><td>${r.cod}</td><td>${r.desc}</td><td>${fmtR(r.valor)}</td></tr>`;
+  });
+  html += `<tr class="tr-total"><td></td><td>TOTAL</td><td>${fmtR(total)}</td></tr>`;
+  document.getElementById('bodyRealizadoPreview').innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
