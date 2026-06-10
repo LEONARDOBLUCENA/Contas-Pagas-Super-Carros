@@ -370,8 +370,9 @@ function init() {
   if (!selAno.value) { const o = document.createElement('option'); o.value = anoAtual; o.textContent = anoAtual; selAno.appendChild(o); selAno.value = anoAtual; }
 
   // selects de ano nos campos de importação
-  ['impAno','anoOrcInput','selAnoEdit','selAnoEditReal'].forEach(id => {
+  ['impAno','anoOrcInput','selAnoEdit'].forEach(id => {
     const el = document.getElementById(id);
+    if (!el) return;
     for (let y = anoAtual - 2; y <= anoAtual + 2; y++) {
       const o = document.createElement('option'); o.value = y; o.textContent = y;
       if (y === anoAtual) o.selected = true;
@@ -509,11 +510,21 @@ function getRealizadoAcumAte(cod, ano, mesMax) {
   return s;
 }
 
-function getGrupos(ano) { return []; }
-function getContas(ano) { return getOrcadoRows(ano); }
-
-function getContasDoGrupo(ano, grupoCod) {
-  return getOrcadoRows(ano);
+function getContas(ano) {
+  const rows = getOrcadoRows(ano);
+  // union com códigos do realizado que não estão no orçado
+  const codigos = new Set(rows.map(r => r.cod));
+  Object.keys(REALIZADO)
+    .filter(k => k.startsWith(ano+'-'))
+    .forEach(k => {
+      REALIZADO[k].forEach(r => {
+        if (!codigos.has(r.cod)) {
+          codigos.add(r.cod);
+          rows.push({cod: r.cod, desc: r.desc, isGroup: false, valores: new Array(12).fill(0)});
+        }
+      });
+    });
+  return rows;
 }
 
 function getMesAcumRef() {
