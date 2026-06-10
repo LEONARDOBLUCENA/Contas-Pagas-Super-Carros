@@ -234,12 +234,19 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     </div>
   </div>
   <div class="tcard">
-    <div class="tcard-hdr"><h3>Resumo por Grupo</h3></div>
+    <div class="tcard-hdr"><h3>Resumo por Conta</h3></div>
     <div class="tscroll"><table>
       <thead><tr>
         <th style="text-align:left">Cód.</th>
-        <th style="text-align:left">Grupo</th>
-        <th>Orçado</th><th>Realizado</th><th>Variação R$</th><th>% Exec.</th>
+        <th style="text-align:left">Descrição</th>
+        <th colspan="3" style="text-align:center;border-left:1px solid var(--border2)">Período Selecionado</th>
+        <th colspan="3" style="text-align:center;border-left:1px solid var(--border2)">Acumulado (Jan–mês)</th>
+      </tr>
+      <tr>
+        <th style="text-align:left"></th>
+        <th style="text-align:left"></th>
+        <th style="border-left:1px solid var(--border2)">Orçado</th><th>Realizado</th><th>Variação R$</th>
+        <th style="border-left:1px solid var(--border2)">Orçado</th><th>Realizado</th><th>Variação R$</th>
       </tr></thead>
       <tbody id="bodyResumo"></tbody>
     </table></div>
@@ -607,27 +614,34 @@ function renderKPIs(ano, meses) {
 
 function renderResumo(ano, meses) {
   const contas = getContas(ano);
-  let html = '', totO=0, totR=0;
+  const mesAcum = getMesAcumRef();
+  let html = '', totOP=0,totRP=0,totOA=0,totRA=0;
   contas.forEach(c => {
-    const cO=getOrcadoPeriodo(c.cod,ano,meses), cR=getRealizadoPeriodo(c.cod,ano,meses);
-    totO+=cO; totR+=cR;
-    const pct = cO ? cR/cO*100 : 0;
-    const pc = pct>100?'var(--red)':pct>=90?'var(--amber)':'var(--green)';
-    const varV = cO-cR;
+    const oP=getOrcadoPeriodo(c.cod,ano,meses), rP=getRealizadoPeriodo(c.cod,ano,meses);
+    const oA=getOrcadoAcumAte(c.cod,ano,mesAcum), rA=getRealizadoAcumAte(c.cod,ano,mesAcum);
+    const varP=oP-rP, varA=oA-rA;
+    totOP+=oP; totRP+=rP; totOA+=oA; totRA+=rA;
     html += `<tr>
       <td>${c.cod}</td><td>${c.desc}</td>
-      <td>${fmtR(cO)}</td><td>${fmtR(cR)}</td>
-      <td style="color:${varColor(varV)}">${varV>=0?'+':'-'}${fmtR(varV)}</td>
-      <td><span class="prog-wrap"><span class="prog-fill" style="width:${Math.min(pct,100)}%;background:${pc}"></span></span>${pct.toFixed(1)}%</td>
+      <td style="border-left:1px solid var(--border2)">${fmtR(oP)}</td>
+      <td>${fmtR(rP)}</td>
+      <td style="color:${varColor(varP)}">${varP>=0?'+':'-'}${fmtR(varP)}</td>
+      <td style="border-left:1px solid var(--border2)">${fmtR(oA)}</td>
+      <td>${fmtR(rA)}</td>
+      <td style="color:${varColor(varA)}">${varA>=0?'+':'-'}${fmtR(varA)}</td>
     </tr>`;
   });
-  if (!html) html = emptyRow(6);
+  if (!html) html = emptyRow(8);
   else {
-    const varT=totO-totR; const pctT=totO?totR/totO*100:0;
+    const varTP=totOP-totRP, varTA=totOA-totRA;
     html += `<tr class="tr-total"><td></td><td>TOTAL GERAL</td>
-      <td>${fmtR(totO)}</td><td>${fmtR(totR)}</td>
-      <td style="color:${varColor(varT)}">${varT>=0?'+':'-'}${fmtR(varT)}</td>
-      <td>${pctT.toFixed(1)}%</td></tr>`;
+      <td style="border-left:1px solid var(--border2)">${fmtR(totOP)}</td>
+      <td>${fmtR(totRP)}</td>
+      <td style="color:${varColor(varTP)}">${varTP>=0?'+':'-'}${fmtR(varTP)}</td>
+      <td style="border-left:1px solid var(--border2)">${fmtR(totOA)}</td>
+      <td>${fmtR(totRA)}</td>
+      <td style="color:${varColor(varTA)}">${varTA>=0?'+':'-'}${fmtR(varTA)}</td>
+    </tr>`;
   }
   document.getElementById('bodyResumo').innerHTML = html;
 }
