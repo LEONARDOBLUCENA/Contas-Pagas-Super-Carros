@@ -1020,37 +1020,44 @@ function renderOrcEdit() {
 
   const ano = sel.value;
   const rows = ORCADO[ano] || [];
-  let html='', ultimoGrupo='', grupoRows=[], ultimoGrupoNome='';
+  let html = '';
 
-  const flushGrupo = () => {
-    if (!grupoRows.length) return;
-    // linha de subtotal do grupo anterior
-    const subVals = Array.from({length:12}, (_,i) =>
-      grupoRows.reduce((s,r) => s + (r.valores[i]||0), 0)
-    );
-    const subCols = subVals.map(v => `<td style="text-align:right;font-weight:700">${v !== 0 ? v.toLocaleString('pt-BR') : '—'}</td>`).join('');
-    html += `<tr class="tr-total" style="font-size:12px"><td></td><td>↳ Total ${ultimoGrupoNome}</td><td></td>${subCols}</tr>`;
-    grupoRows = [];
-  };
-
+  // agrupa por grupo mantendo ordem original
+  const grupos = [];
+  const grupoMap = new Map();
   rows.forEach((row, idx) => {
     const gnome = getGrupoNome(row.cod);
-    if (gnome !== ultimoGrupo) {
-      flushGrupo();
-      html += `<tr class="tr-group"><td colspan="15">▸ ${gnome}</td></tr>`;
-      ultimoGrupo = gnome;
-      ultimoGrupoNome = gnome;
+    const gid = getGrupoId(row.cod);
+    if (!grupoMap.has(gid)) {
+      const g = { id: gid, nome: gnome, rows: [] };
+      grupos.push(g);
+      grupoMap.set(gid, g);
     }
-    grupoRows.push(row);
-    const vals=row.valores.map((v,i)=>`<td><input type="number" step="0.01" value="${v}" data-ano="${ano}" data-idx="${idx}" data-mi="${i}" onchange="orcFieldChange(this)"></td>`).join('');
-    html+=`<tr>
-      <td>${row.cod}</td>
-      <td><input type="text" value="${row.desc}" data-ano="${ano}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="orcFieldChange(this)"></td>
-      <td style="font-size:11px;color:var(--text3);text-align:left">${gnome}</td>
-      ${vals}
-    </tr>`;
+    grupoMap.get(gid).rows.push({ row, idx });
   });
-  flushGrupo();
+
+  grupos.forEach(g => {
+    // subtotal dos 12 meses para este grupo
+    const subVals = Array.from({length:12}, (_,i) =>
+      g.rows.reduce((s, {row}) => s + (row.valores[i]||0), 0)
+    );
+    const subCols = subVals.map(v =>
+      `<td style="text-align:right;font-weight:700">${v !== 0 ? v.toLocaleString('pt-BR') : '—'}</td>`
+    ).join('');
+    html += `<tr class="tr-group"><td colspan="3">▸ ${g.nome}</td>${subCols}</tr>`;
+
+    g.rows.forEach(({row, idx}) => {
+      const vals = row.valores.map((v,i) =>
+        `<td><input type="number" step="0.01" value="${v}" data-ano="${ano}" data-idx="${idx}" data-mi="${i}" onchange="orcFieldChange(this)"></td>`
+      ).join('');
+      html += `<tr>
+        <td>${row.cod}</td>
+        <td><input type="text" value="${row.desc}" data-ano="${ano}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="orcFieldChange(this)"></td>
+        <td style="font-size:11px;color:var(--text3);text-align:left">${g.nome}</td>
+        ${vals}
+      </tr>`;
+    });
+  });
   document.getElementById('bodyOrcEdit').innerHTML = html;
 }
 
