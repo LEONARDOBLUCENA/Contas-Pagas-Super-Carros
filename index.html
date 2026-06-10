@@ -109,9 +109,9 @@ main{padding:20px 24px;max-width:1400px;margin:0 auto}
 /* ── CHARTS ── */
 .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
 @media(max-width:860px){.charts-row{grid-template-columns:1fr}}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;box-shadow:var(--sh)}
-.chart-card h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-bottom:12px}
-canvas{width:100%!important}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;box-shadow:var(--sh);height:320px;display:flex;flex-direction:column}
+.chart-card h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-bottom:12px;flex-shrink:0}
+.chart-wrap{position:relative;flex:1;min-height:0}
 
 /* ── TABLE CARD ── */
 .tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px;box-shadow:var(--sh)}
@@ -228,11 +228,9 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 <div id="tab-dashboard" class="tab-panel active">
   <div class="kpi-grid" id="kpiGrid"></div>
   <div class="charts-row" style="grid-template-columns:1fr">
-    <div class="chart-card" style="height:300px;display:flex;flex-direction:column">
+    <div class="chart-card">
       <h3>Orçado vs Realizado — Mês a Mês</h3>
-      <div style="position:relative;flex:1">
-        <canvas id="chartMensal"></canvas>
-      </div>
+      <div class="chart-wrap"><canvas id="chartMensal"></canvas></div>
     </div>
   </div>
   <div class="tcard">
@@ -784,7 +782,7 @@ function importRealizado() {
   renderRealizadoPreview();
   // garante que o card aparece mesmo sem trocar de aba
   const card = document.getElementById('cardRealizadoPreview');
-  if (card) { card.style.display=''; card.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+  if (card) { card.style.display='block'; card.scrollIntoView({behavior:'smooth', block:'nearest'}); }
   showMsg('msgRealizado',`✓ ${ok} lançamentos importados para ${MESES_FULL[mes-1]}/${ano}.`,'ok');
   document.getElementById('txtRealizado').value='';
 }
@@ -815,7 +813,7 @@ function renderRealizadoPreview() {
     });
 
   if (!keys.length) { card.style.display='none'; scroll.innerHTML=''; return; }
-  card.style.display='';
+  card.style.display='block';
 
   // monta mapa cod -> desc (union de todos os meses)
   const codMap = new Map(); // cod -> desc
@@ -879,7 +877,7 @@ function renderOrcEdit() {
   const anos = Object.keys(ORCADO).sort();
   const card = document.getElementById('cardOrcEdit');
   if (!anos.length) { card.style.display='none'; return; }
-  card.style.display='';
+  card.style.display='block';
 
   // popula select do edit
   const sel = document.getElementById('selAnoEdit');
