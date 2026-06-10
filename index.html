@@ -193,6 +193,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   <nav>
     <button class="tab-btn active" onclick="setTab('dashboard',this)">Dashboard</button>
     <button class="tab-btn" onclick="setTab('contas',this)">Contas Pagas</button>
+    <button class="tab-btn" onclick="setTab('realizado',this)">Realizado</button>
     <button class="tab-btn" onclick="setTab('orcamento',this)">Orçamento Anual</button>
   </nav>
 </header>
@@ -268,68 +269,65 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   </div>
 </div>
 
+<!-- ══ REALIZADO ══ -->
+<div id="tab-realizado" class="tab-panel">
+  <div class="imp-box" style="max-width:520px">
+    <h3>💳 Importar Contas Pagas Realizado</h3>
+    <p>Selecione mês/ano e cole do Excel:<br>
+    <strong>Código | Descrição | Valor</strong><br>
+    Cada importação substitui o mês selecionado.</p>
+    <div class="row">
+      <div class="field">
+        <label>Mês</label>
+        <select id="impMes">
+          <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+          <option value="3">Março</option><option value="4">Abril</option>
+          <option value="5">Maio</option><option value="6">Junho</option>
+          <option value="7">Julho</option><option value="8">Agosto</option>
+          <option value="9">Setembro</option><option value="10">Outubro</option>
+          <option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Ano</label>
+        <select id="impAno"></select>
+      </div>
+    </div>
+    <textarea id="txtRealizado" placeholder="Cole aqui o realizado do Excel (Tab-separado)..." style="min-height:160px"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-accent" onclick="importRealizado()">Importar</button>
+      <button class="btn btn-red" onclick="clearRealizadoMes()">Limpar Mês</button>
+    </div>
+    <div id="msgRealizado"></div>
+    <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
+  </div>
+</div>
+
 <!-- ══ ORÇAMENTO ANUAL ══ -->
 <div id="tab-orcamento" class="tab-panel">
-  <div class="imp-grid">
-
-    <!-- ORÇADO -->
-    <div class="imp-box">
-      <h3>📋 Importar Orçamento</h3>
-      <p>Informe o ano e cole do Excel:<br>
-      <strong>Código | Descrição | Jan | Fev | Mar | Abr | Mai | Jun | Jul | Ago | Set | Out | Nov | Dez</strong><br>
-      Linhas sem valores numéricos → grupos/pais.</p>
-      <div class="row">
-        <div class="field">
-          <label>Ano do Orçamento</label>
-          <select id="anoOrcInput"></select>
-        </div>
+  <div class="imp-box" style="max-width:520px;margin-bottom:20px">
+    <h3>📋 Importar Orçamento</h3>
+    <p>Informe o ano e cole do Excel:<br>
+    <strong>Código | Descrição | Jan | Fev | Mar | Abr | Mai | Jun | Jul | Ago | Set | Out | Nov | Dez</strong></p>
+    <div class="row">
+      <div class="field">
+        <label>Ano do Orçamento</label>
+        <select id="anoOrcInput"></select>
       </div>
-      <textarea id="txtOrcado" placeholder="Cole aqui o orçamento do Excel (Tab-separado)..."></textarea>
-      <div class="btn-row">
-        <button class="btn btn-accent" onclick="importOrcado()">Importar</button>
-        <button class="btn btn-outline" onclick="clearOrcadoAno()">Limpar Ano</button>
-      </div>
-      <div id="msgOrcado"></div>
-      <div class="info-line">Anos com orçamento: <strong id="infoOrcado">—</strong></div>
     </div>
-
-    <!-- REALIZADO -->
-    <div class="imp-box">
-      <h3>💳 Importar Realizado</h3>
-      <p>Selecione mês/ano e cole do Excel:<br>
-      <strong>Código | Descrição | Valor</strong><br>
-      Cada importação substitui o mês selecionado.</p>
-      <div class="row">
-        <div class="field">
-          <label>Mês</label>
-          <select id="impMes">
-            <option value="1">Janeiro</option><option value="2">Fevereiro</option>
-            <option value="3">Março</option><option value="4">Abril</option>
-            <option value="5">Maio</option><option value="6">Junho</option>
-            <option value="7">Julho</option><option value="8">Agosto</option>
-            <option value="9">Setembro</option><option value="10">Outubro</option>
-            <option value="11">Novembro</option><option value="12">Dezembro</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Ano</label>
-          <select id="impAno"></select>
-        </div>
-      </div>
-      <textarea id="txtRealizado" placeholder="Cole aqui o realizado do Excel (Tab-separado)..."></textarea>
-      <div class="btn-row">
-        <button class="btn btn-accent" onclick="importRealizado()">Importar</button>
-        <button class="btn btn-red" onclick="clearRealizadoMes()">Limpar Mês</button>
-      </div>
-      <div id="msgRealizado"></div>
-      <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
+    <textarea id="txtOrcado" placeholder="Cole aqui o orçamento do Excel (Tab-separado)..." style="min-height:160px"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-accent" onclick="importOrcado()">Importar</button>
+      <button class="btn btn-outline" onclick="clearOrcadoAno()">Limpar Ano</button>
     </div>
+    <div id="msgOrcado"></div>
+    <div class="info-line">Anos com orçamento: <strong id="infoOrcado">—</strong></div>
   </div>
 
   <!-- EDIÇÃO INLINE ORÇADO -->
   <div class="tcard" id="cardOrcEdit" style="display:none">
     <div class="tcard-hdr">
-      <h3 id="tituloOrcEdit">Orçamento — Edição inline</h3>
+      <h3>Orçamento — Edição inline</h3>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="selAnoEdit" onchange="renderOrcEdit()"></select>
         <button class="btn btn-accent" onclick="saveOrcEdit()">💾 Salvar</button>
