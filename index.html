@@ -279,31 +279,12 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
   </div>
 
-  <!-- TABELA EDITÁVEL REALIZADO -->
+  <!-- TABELA CONSOLIDADA - colunas por mês -->
   <div class="tcard" id="cardRealizadoPreview" style="display:none">
     <div class="tcard-hdr">
-      <h3>Realizado — Edição inline</h3>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="selMesEdit" onchange="renderRealizadoPreview()">
-          <option value="1">Janeiro</option><option value="2">Fevereiro</option>
-          <option value="3">Março</option><option value="4">Abril</option>
-          <option value="5">Maio</option><option value="6">Junho</option>
-          <option value="7">Julho</option><option value="8">Agosto</option>
-          <option value="9">Setembro</option><option value="10">Outubro</option>
-          <option value="11">Novembro</option><option value="12">Dezembro</option>
-        </select>
-        <select id="selAnoEditReal" onchange="renderRealizadoPreview()"></select>
-        <button class="btn btn-accent" onclick="saveRealizadoEdit()">💾 Salvar</button>
-      </div>
+      <h3 id="tituloRealizado">Realizado</h3>
     </div>
-    <div class="tscroll"><table class="edit-table">
-      <thead><tr>
-        <th style="text-align:left">Código</th>
-        <th style="text-align:left">Descrição</th>
-        <th>Valor</th>
-      </tr></thead>
-      <tbody id="bodyRealizadoPreview"></tbody>
-    </table></div>
+    <div class="tscroll" id="scrollRealizado"></div>
   </div>
 </div>
 
@@ -740,18 +721,32 @@ function importRealizado() {
   const ano = document.getElementById('impAno').value;
   if (!raw) { showMsg('msgRealizado','Cole os dados antes de importar.','err'); return; }
 
-  const rows = raw.split('\n').map(r => r.split('\t'));
-  const parsed = []; let ok=0,skip=0;
-  rows.forEach(cols => {
-    if (cols.length < 3) { skip++; return; }
-    const cod=cols[0].trim(), desc=cols[1].trim();
-    const valor=parseFloat((cols[2]||'0').replace(/\./g,'').replace(',','.'));
-    if (!cod||isNaN(valor)) { skip++; return; }
-    parsed.push({cod,desc,valor}); ok++;
+  // normaliza quebras de linha e divide
+  const linhas = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
+  const parsed = []; let ok=0, skip=0;
+
+  linhas.forEach(linha => {
+    // tenta tab primeiro, depois ponto-e-vírgula, depois vírgula
+    const cols = linha.includes('\t') ? linha.split('\t') : linha.includes(';') ? linha.split(';') : linha.split(',');
+    if (cols.length < 2) { skip++; return; }
+
+    const cod  = cols[0].trim();
+    const desc = cols[1].trim();
+    if (!cod) { skip++; return; }
+
+    // valor pode estar na col 2 ou não existir
+    const rawVal = (cols[2] || '0').trim()
+      .replace(/[^\d,\.\-]/g, '')   // remove R$, espaços etc
+      .replace(/\.(?=\d{3})/g, '')  // remove ponto de milhar (1.234 → 1234)
+      .replace(',', '.');            // troca vírgula decimal por ponto
+
+    const valor = parseFloat(rawVal) || 0;
+    parsed.push({cod, desc, valor});
+    ok++;
   });
 
-  if (!ok) { showMsg('msgRealizado','Nenhuma linha válida.','err'); return; }
-  const key=`${ano}-${mes}`;
+  if (!ok) { showMsg('msgRealizado','Nenhuma linha válida encontrada.','err'); return; }
+  const key = `${ano}-${mes}`;
   REALIZADO[key] = parsed;
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
   addAnoToSelects(parseInt(ano));
@@ -774,51 +769,74 @@ function clearRealizadoMes() {
 
 function renderRealizadoPreview() {
   const card = document.getElementById('cardRealizadoPreview');
-  const keys = Object.keys(REALIZADO).filter(k => REALIZADO[k] && REALIZADO[k].length);
-  if (!keys.length) { card.style.display='none'; return; }
+  const scroll = document.getElementById('scrollRealizado');
+
+  // pega todos os períodos salvos, ordena por ano-mes
+  const keys = Object.keys(REALIZADO)
+    .filter(k => REALIZADO[k] && REALIZADO[k].length)
+    .sort((a,b) => {
+      const [aa,am] = a.split('-').map(Number);
+      const [ba,bm] = b.split('-').map(Number);
+      return aa !== ba ? aa - ba : am - bm;
+    });
+
+  if (!keys.length) { card.style.display='none'; scroll.innerHTML=''; return; }
   card.style.display='';
 
-  // popula selAnoEditReal se necessário
-  const selAno = document.getElementById('selAnoEditReal');
-  const anosReal = [...new Set(keys.map(k => k.split('-')[0]))].sort();
-  const curAno = selAno.value;
-  selAno.innerHTML = '';
-  anosReal.forEach(a => { const o=document.createElement('option'); o.value=a; o.textContent=a; selAno.appendChild(o); });
-  if (curAno && anosReal.includes(curAno)) selAno.value=curAno;
-  else selAno.value=anosReal[anosReal.length-1];
-
-  const mes = parseInt(document.getElementById('selMesEdit').value);
-  const ano = selAno.value;
-  const key = `${ano}-${mes}`;
-  const dados = REALIZADO[key] || [];
-
-  let html='', total=0;
-  dados.forEach((r, idx) => {
-    total += r.valor;
-    html += `<tr>
-      <td>${r.cod}</td>
-      <td><input type="text" value="${r.desc}" data-key="${key}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="realFieldChange(this)"></td>
-      <td><input type="number" step="0.01" value="${r.valor}" data-key="${key}" data-idx="${idx}" data-field="valor" onchange="realFieldChange(this)"></td>
-    </tr>`;
+  // monta mapa cod -> desc (union de todos os meses)
+  const codMap = new Map(); // cod -> desc
+  keys.forEach(key => {
+    REALIZADO[key].forEach(r => {
+      if (!codMap.has(r.cod)) codMap.set(r.cod, r.desc);
+    });
   });
-  if (dados.length) html += `<tr class="tr-total"><td></td><td>Total</td><td>${fmtR(total)}</td></tr>`;
-  else html = `<tr><td colspan="3"><div class="empty"><div class="ic">📂</div><p>Nenhum dado para ${MESES_FULL[mes-1]}/${ano}.</p></div></td></tr>`;
+  const codigos = [...codMap.keys()];
 
-  document.getElementById('bodyRealizadoPreview').innerHTML = html;
+  // monta mapa cod+key -> valor
+  const valMap = {};
+  keys.forEach(key => {
+    REALIZADO[key].forEach(r => { valMap[`${r.cod}|${key}`] = r.valor; });
+  });
+
+  // cabeçalho
+  const thMeses = keys.map(k => {
+    const [ano,mes] = k.split('-');
+    return `<th>${MESES[mes-1]}/${ano}</th>`;
+  }).join('');
+
+  // linhas
+  const rows = codigos.map(cod => {
+    const cels = keys.map(k => {
+      const v = valMap[`${cod}|${k}`];
+      return v !== undefined ? `<td>${fmtR(v)}</td>` : `<td style="color:var(--text3)">—</td>`;
+    }).join('');
+    return `<tr><td>${cod}</td><td>${codMap.get(cod)}</td>${cels}</tr>`;
+  }).join('');
+
+  // totais por mês
+  const totCels = keys.map(k => {
+    const tot = (REALIZADO[k]||[]).reduce((s,r) => s+r.valor, 0);
+    return `<td>${fmtR(tot)}</td>`;
+  }).join('');
+
+  scroll.innerHTML = `<table>
+    <thead><tr>
+      <th style="text-align:left">Código</th>
+      <th style="text-align:left">Descrição</th>
+      ${thMeses}
+    </tr></thead>
+    <tbody>
+      ${rows}
+      <tr class="tr-total"><td></td><td>Total</td>${totCels}</tr>
+    </tbody>
+  </table>`;
+
+  document.getElementById('tituloRealizado').textContent =
+    `Realizado — ${keys.length} período(s)`;
 }
 
-function realFieldChange(el) {
-  const key=el.dataset.key, idx=parseInt(el.dataset.idx);
-  if (!REALIZADO[key]) return;
-  if (el.dataset.field==='desc') REALIZADO[key][idx].desc=el.value;
-  else REALIZADO[key][idx].valor=parseFloat(el.value)||0;
-}
-
-function saveRealizadoEdit() {
-  localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
-  render();
-  showMsg('msgRealizado','✓ Realizado salvo.','ok');
-}
+function realFieldChange(el) {}   // mantido por compatibilidade
+function saveRealizadoEdit() {}   // mantido por compatibilidade
 
 // ═══════════════════════════════════════════════════════════════════════
 // EDIT INLINE ORÇADO
