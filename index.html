@@ -280,7 +280,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   </div>
 
   <!-- TABELA CONSOLIDADA - colunas por mês -->
-  <div class="tcard" id="cardRealizadoPreview" style="display:none">
+  <div class="tcard" id="cardRealizadoPreview">
     <div class="tcard-hdr">
       <h3 id="tituloRealizado">Realizado</h3>
     </div>
@@ -423,6 +423,10 @@ function setTab(t, el) {
   document.getElementById('filtersBar').style.display = t === 'dashboard' ? 'flex' : 'none';
   if (t === 'orcamento') renderOrcEdit();
   if (t === 'realizado') renderRealizadoPreview();
+  if (t === 'dashboard') {
+    const ano = parseInt(document.getElementById('selAno').value) || new Date().getFullYear();
+    renderCharts(ano, selectedMeses.length ? selectedMeses : [1,2,3,4,5,6,7,8,9,10,11,12]);
+  }
 }
 
 function closeMsd() { document.getElementById('msdDrop').classList.remove('open'); }
@@ -661,7 +665,7 @@ function renderContas(ano, meses) {
 }
 
 function renderCharts(ano, meses) {
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     const canvas = document.getElementById('chartMensal');
     if (!canvas) return;
 
@@ -689,7 +693,7 @@ function renderCharts(ano, meses) {
         }
       }
     });
-  }, 50);
+  });
 }
 
 function emptyRow(cols) {
@@ -812,8 +816,11 @@ function renderRealizadoPreview() {
       return aa !== ba ? aa - ba : am - bm;
     });
 
-  if (!keys.length) { card.style.display='none'; scroll.innerHTML=''; return; }
-  card.style.display='block';
+  if (!keys.length) {
+    scroll.innerHTML = `<div class="empty"><div class="ic">📂</div><p>Nenhum dado importado ainda.<br>Cole os dados acima e clique em <strong>Importar</strong>.</p></div>`;
+    document.getElementById('tituloRealizado').textContent = 'Realizado';
+    return;
+  }
 
   // monta mapa cod -> desc (union de todos os meses)
   const codMap = new Map(); // cod -> desc
