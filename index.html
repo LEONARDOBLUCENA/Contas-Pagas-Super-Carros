@@ -228,9 +228,11 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 <div id="tab-dashboard" class="tab-panel active">
   <div class="kpi-grid" id="kpiGrid"></div>
   <div class="charts-row" style="grid-template-columns:1fr">
-    <div class="chart-card">
+    <div class="chart-card" style="height:300px;display:flex;flex-direction:column">
       <h3>Orçado vs Realizado — Mês a Mês</h3>
-      <canvas id="chartMensal" style="height:260px"></canvas>
+      <div style="position:relative;flex:1">
+        <canvas id="chartMensal"></canvas>
+      </div>
     </div>
   </div>
   <div class="tcard">
@@ -560,8 +562,10 @@ function execBadge(r, o) {
   const cls = p > 100 ? 'br' : p >= 90 ? 'by' : 'bg';
   return `<span class="badge ${cls}">${p.toFixed(1)}%</span>`;
 }
-// despesas: variação positiva (gastou menos que orçado) = verde, negativa = vermelho
-function varColor(v) { return v >= 0 ? 'var(--green)' : 'var(--red)'; }
+// despesas com valores negativos: realizado mais negativo que orçado = ruim (vermelho)
+// varV = orçado - realizado. Se orçado=-100 e realizado=-120, varV=20 (positivo) = gastou mais = VERMELHO
+// Se orçado=-100 e realizado=-80, varV=-20 (negativo) = gastou menos = VERDE
+function varColor(v) { return v <= 0 ? 'var(--green)' : 'var(--red)'; }
 
 function renderKPIs(ano, meses) {
   const contas = getContas(ano);
@@ -588,10 +592,10 @@ function renderKPIs(ano, meses) {
   const kpis = [
     {l:'Realizado '+periodo, v:fmtR(rP), c:'c-accent', s:String(ano)},
     {l:'Orçado '+periodo,    v:fmtR(oP), c:'', s:''},
-    {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP>=0?'c-green':'c-red', s:varP>=0?'Abaixo do orçado ✓':'Acima do orçado ✗'},
+    {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP<=0?'c-green':'c-red', s:varP<=0?'Abaixo do orçado ✓':'Acima do orçado ✗'},
     {l:'Realizado Acumulado',v:fmtR(rA), c:'', s:'Jan – '+MESES[mesAcum-1]+'/'+ano},
     {l:'Orçado Acumulado',   v:fmtR(oA), c:'', s:''},
-    {l:'Var. Acumulada',     v:(varA>=0?'+':'')+fmtR(varA,false), c:varA>=0?'c-green':'c-red', s:''},
+    {l:'Var. Acumulada',     v:(varA>=0?'+':'')+fmtR(varA,false), c:varA<=0?'c-green':'c-red', s:''},
   ];
 
   document.getElementById('kpiGrid').innerHTML = kpis.map(k =>
@@ -663,12 +667,11 @@ function renderCharts(ano, meses) {
   const gc = dark ? '#3a3a38' : '#e8e7e3';
   const tc = dark ? '#9a9a94' : '#9a9a94';
 
-  const dOrc  = MESES.map((_,i) => getContas(ano).reduce((s,c) => s + getOrcadoPeriodo(c.cod, ano, [i+1]), 0));
-  const dReal = MESES.map((_,i) => getContas(ano).reduce((s,c) => s + getRealizadoPeriodo(c.cod, ano, [i+1]), 0));
+  const dOrc  = MESES.map((_,i) => Math.abs(getContas(ano).reduce((s,c) => s + getOrcadoPeriodo(c.cod, ano, [i+1]), 0)));
+  const dReal = MESES.map((_,i) => Math.abs(getContas(ano).reduce((s,c) => s + getRealizadoPeriodo(c.cod, ano, [i+1]), 0)));
 
-  const canvas = document.getElementById('chartMensal');
   if (chartMensal) { chartMensal.destroy(); chartMensal = null; }
-  chartMensal = new Chart(canvas, {
+  chartMensal = new Chart(document.getElementById('chartMensal'), {
     type: 'bar',
     data: { labels: MESES, datasets: [
       { label:'Orçado',    data: dOrc,  backgroundColor:'rgba(180,83,9,0.25)',  borderColor:'#b45309', borderWidth:1 },
