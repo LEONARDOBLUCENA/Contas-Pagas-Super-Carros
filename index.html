@@ -418,6 +418,7 @@ function init() {
 
   updateInfos();
   render();
+  renderRealizadoPreview();
 
   // fecha MSD ao clicar fora
   document.addEventListener('click', e => {
@@ -802,23 +803,29 @@ function clearRealizadoMes() {
 }
 
 function renderRealizadoPreview() {
-  const mes = parseInt(document.getElementById('impMes').value);
-  const ano = document.getElementById('impAno').value;
-  const key = `${ano}-${mes}`;
   const card = document.getElementById('cardRealizadoPreview');
-  const dados = REALIZADO[key] || [];
-
-  if (!dados.length) { card.style.display='none'; return; }
-  card.style.display='';
-  document.getElementById('tituloRealizadoPreview').textContent =
-    `Realizado — ${MESES_FULL[mes-1]}/${ano}`;
-
-  let html='', total=0;
-  dados.forEach(r => {
-    total += r.valor;
-    html += `<tr><td>${r.cod}</td><td>${r.desc}</td><td>${fmtR(r.valor)}</td></tr>`;
+  const keys = Object.keys(REALIZADO).filter(k => REALIZADO[k] && REALIZADO[k].length).sort((a,b) => {
+    const [aa,am] = a.split('-').map(Number);
+    const [ba,bm] = b.split('-').map(Number);
+    return aa !== ba ? aa - ba : am - bm;
   });
-  html += `<tr class="tr-total"><td></td><td>TOTAL</td><td>${fmtR(total)}</td></tr>`;
+
+  if (!keys.length) { card.style.display='none'; return; }
+  card.style.display='';
+  document.getElementById('tituloRealizadoPreview').textContent = 'Realizado — Dados Importados';
+
+  let html='';
+  keys.forEach(key => {
+    const [ano, mes] = key.split('-');
+    const dados = REALIZADO[key];
+    let total = 0;
+    html += `<tr class="tr-group"><td colspan="3">${MESES_FULL[mes-1]}/${ano} — ${dados.length} lançamentos</td></tr>`;
+    dados.forEach(r => {
+      total += r.valor;
+      html += `<tr><td>${r.cod}</td><td>${r.desc}</td><td>${fmtR(r.valor)}</td></tr>`;
+    });
+    html += `<tr class="tr-total"><td></td><td>Total ${MESES[mes-1]}/${ano}</td><td>${fmtR(total)}</td></tr>`;
+  });
   document.getElementById('bodyRealizadoPreview').innerHTML = html;
 }
 
