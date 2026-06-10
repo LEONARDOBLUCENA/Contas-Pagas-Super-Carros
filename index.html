@@ -663,30 +663,35 @@ function renderContas(ano, meses) {
 }
 
 function renderCharts(ano, meses) {
-  const dark = window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc = dark ? '#3a3a38' : '#e8e7e3';
-  const tc = dark ? '#9a9a94' : '#9a9a94';
+  setTimeout(() => {
+    const canvas = document.getElementById('chartMensal');
+    if (!canvas) return;
 
-  const dOrc  = MESES.map((_,i) => Math.abs(getContas(ano).reduce((s,c) => s + getOrcadoPeriodo(c.cod, ano, [i+1]), 0)));
-  const dReal = MESES.map((_,i) => Math.abs(getContas(ano).reduce((s,c) => s + getRealizadoPeriodo(c.cod, ano, [i+1]), 0)));
+    const dark = window.matchMedia('(prefers-color-scheme:dark)').matches;
+    const gc = dark ? '#3a3a38' : '#e8e7e3';
+    const tc = dark ? '#9a9a94' : '#9a9a94';
 
-  if (chartMensal) { chartMensal.destroy(); chartMensal = null; }
-  chartMensal = new Chart(document.getElementById('chartMensal'), {
-    type: 'bar',
-    data: { labels: MESES, datasets: [
-      { label:'Orçado',    data: dOrc,  backgroundColor:'rgba(180,83,9,0.25)',  borderColor:'#b45309', borderWidth:1 },
-      { label:'Realizado', data: dReal, backgroundColor:'rgba(14,125,85,0.35)', borderColor:'#0e7d55', borderWidth:1 },
-    ]},
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: tc, font: { size: 11 } } } },
-      scales: {
-        x: { ticks: { color: tc }, grid: { color: gc } },
-        y: { ticks: { color: tc, callback: v => 'R$' + (v/1000).toFixed(0) + 'k' }, grid: { color: gc } }
+    const dOrc  = MESES.map((_,i) => Math.abs(getContas(ano).reduce((s,c) => s + getOrcadoPeriodo(c.cod, ano, [i+1]), 0)));
+    const dReal = MESES.map((_,i) => Math.abs(getContas(ano).reduce((s,c) => s + getRealizadoPeriodo(c.cod, ano, [i+1]), 0)));
+
+    if (chartMensal) { chartMensal.destroy(); chartMensal = null; }
+    chartMensal = new Chart(canvas, {
+      type: 'bar',
+      data: { labels: MESES, datasets: [
+        { label:'Orçado',    data: dOrc,  backgroundColor:'rgba(180,83,9,0.25)',  borderColor:'#b45309', borderWidth:1 },
+        { label:'Realizado', data: dReal, backgroundColor:'rgba(14,125,85,0.35)', borderColor:'#0e7d55', borderWidth:1 },
+      ]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: tc, font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: tc }, grid: { color: gc } },
+          y: { ticks: { color: tc, callback: v => 'R$' + (v/1000).toFixed(0) + 'k' }, grid: { color: gc } }
+        }
       }
-    }
-  });
+    });
+  }, 50);
 }
 
 function emptyRow(cols) {
@@ -775,7 +780,11 @@ function importRealizado() {
   REALIZADO[key] = parsed;
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
   addAnoToSelects(parseInt(ano));
-  updateInfos(); render(); renderRealizadoPreview();
+  updateInfos(); render();
+  renderRealizadoPreview();
+  // garante que o card aparece mesmo sem trocar de aba
+  const card = document.getElementById('cardRealizadoPreview');
+  if (card) { card.style.display=''; card.scrollIntoView({behavior:'smooth', block:'nearest'}); }
   showMsg('msgRealizado',`✓ ${ok} lançamentos importados para ${MESES_FULL[mes-1]}/${ano}.`,'ok');
   document.getElementById('txtRealizado').value='';
 }
