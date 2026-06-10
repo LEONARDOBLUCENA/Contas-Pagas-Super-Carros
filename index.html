@@ -969,7 +969,12 @@ function renderRealizadoPreview() {
   let bodyHtml = '';
   porGrupo.forEach((cods, gid) => {
     const gnome = GRUPOS_DEF.find(g=>g.id===gid)?.nome || 'Outros';
-    bodyHtml += `<tr class="tr-group"><td colspan="${2 + keys.length}">▸ ${gnome}</td></tr>`;
+    // calcula subtotal por mês para o grupo
+    const subCels = keys.map(k => {
+      const tot = cods.reduce((s,cod) => s + (valMap[`${cod}|${k}`] || 0), 0);
+      return `<td style="font-weight:700">${tot !== 0 ? fmtR(tot,false) : '—'}</td>`;
+    }).join('');
+    bodyHtml += `<tr class="tr-group"><td colspan="2">▸ ${gnome}</td>${subCels}</tr>`;
     cods.forEach(cod => {
       const cels = keys.map(k => {
         const v = valMap[`${cod}|${k}`];
@@ -977,12 +982,6 @@ function renderRealizadoPreview() {
       }).join('');
       bodyHtml += `<tr><td>${cod}</td><td>${codMap.get(cod)}</td>${cels}</tr>`;
     });
-    // subtotal grupo por mês
-    const subCels = keys.map(k => {
-      const tot = cods.reduce((s,cod) => s + (valMap[`${cod}|${k}`] || 0), 0);
-      return `<td>${fmtR(tot,false)}</td>`;
-    }).join('');
-    bodyHtml += `<tr class="tr-total" style="font-size:12px"><td colspan="2">↳ Total ${gnome}</td>${subCels}</tr>`;
   });
 
   const totCels = keys.map(k => `<td>${fmtR((REALIZADO[k]||[]).reduce((s,r)=>s+r.valor,0),false)}</td>`).join('');
