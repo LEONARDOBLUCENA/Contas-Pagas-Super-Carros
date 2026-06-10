@@ -192,7 +192,6 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   <div class="logo">SUPER CARROS <span>· Contas Pagas</span></div>
   <nav>
     <button class="tab-btn active" onclick="setTab('dashboard',this)">Dashboard</button>
-    <button class="tab-btn" onclick="setTab('contas',this)">Contas Pagas</button>
     <button class="tab-btn" onclick="setTab('realizado',this)">Realizado</button>
     <button class="tab-btn" onclick="setTab('orcamento',this)">Orçamento Anual</button>
   </nav>
@@ -220,9 +219,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   </div>
 
   <span class="fb-sep">|</span>
-  <button class="btn btn-outline" style="font-size:12px;padding:5px 12px" onclick="exportCSV()">⬇ Excel</button>
   <button class="btn btn-outline" style="font-size:12px;padding:5px 12px" onclick="backupJSON()">💾 Backup</button>
-  <button class="btn btn-outline" style="font-size:12px;padding:5px 12px;color:var(--text3)" onclick="clearAll()">🗑 Limpar tudo</button>
 </div>
 
 <main>
@@ -230,14 +227,10 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 <!-- ══ DASHBOARD ══ -->
 <div id="tab-dashboard" class="tab-panel active">
   <div class="kpi-grid" id="kpiGrid"></div>
-  <div class="charts-row">
+  <div class="charts-row" style="grid-template-columns:1fr">
     <div class="chart-card">
       <h3>Orçado vs Realizado — Mês a Mês</h3>
-      <canvas id="chartMensal" height="200"></canvas>
-    </div>
-    <div class="chart-card">
-      <h3>% Execução por Grupo</h3>
-      <canvas id="chartGrupos" height="200"></canvas>
+      <canvas id="chartMensal" height="120"></canvas>
     </div>
   </div>
   <div class="tcard">
@@ -253,34 +246,17 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   </div>
 </div>
 
-<!-- ══ CONTAS PAGAS ══ -->
-<div id="tab-contas" class="tab-panel">
-  <div class="tcard">
-    <div class="tcard-hdr"><h3>Detalhamento por Conta Contábil</h3></div>
-    <div class="tscroll"><table>
-      <thead><tr>
-        <th style="text-align:left">Código</th>
-        <th style="text-align:left">Descrição</th>
-        <th>Orçado Período</th><th>Realizado Período</th>
-        <th>Var. R$</th><th>% Exec.</th>
-        <th>Orç. Acumulado</th><th>Real. Acumulado</th><th>% Acum.</th>
-      </tr></thead>
-      <tbody id="bodyContas"></tbody>
-    </table></div>
-  </div>
-</div>
 
 <!-- ══ REALIZADO ══ -->
 <div id="tab-realizado" class="tab-panel">
   <div class="imp-box" style="max-width:520px;margin-bottom:20px">
     <h3>💳 Importar Contas Pagas Realizado</h3>
     <p>Selecione mês/ano e cole do Excel:<br>
-    <strong>Código | Descrição | Valor</strong><br>
-    Cada importação substitui o mês selecionado.</p>
+    <strong>Código | Descrição | Valor</strong></p>
     <div class="row">
       <div class="field">
         <label>Mês</label>
-        <select id="impMes" onchange="renderRealizadoPreview()">
+        <select id="impMes">
           <option value="1">Janeiro</option><option value="2">Fevereiro</option>
           <option value="3">Março</option><option value="4">Abril</option>
           <option value="5">Maio</option><option value="6">Junho</option>
@@ -291,7 +267,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
       </div>
       <div class="field">
         <label>Ano</label>
-        <select id="impAno" onchange="renderRealizadoPreview()"></select>
+        <select id="impAno"></select>
       </div>
     </div>
     <textarea id="txtRealizado" placeholder="Cole aqui o realizado do Excel (Tab-separado)..." style="min-height:160px"></textarea>
@@ -303,9 +279,31 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
   </div>
 
-  <!-- PREVIEW REALIZADO lado a lado -->
-  <div id="cardRealizadoPreview" style="display:none">
-    <div id="bodyRealizadoPreview" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;"></div>
+  <!-- TABELA EDITÁVEL REALIZADO -->
+  <div class="tcard" id="cardRealizadoPreview" style="display:none">
+    <div class="tcard-hdr">
+      <h3>Realizado — Edição inline</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="selMesEdit" onchange="renderRealizadoPreview()">
+          <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+          <option value="3">Março</option><option value="4">Abril</option>
+          <option value="5">Maio</option><option value="6">Junho</option>
+          <option value="7">Julho</option><option value="8">Agosto</option>
+          <option value="9">Setembro</option><option value="10">Outubro</option>
+          <option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+        <select id="selAnoEditReal" onchange="renderRealizadoPreview()"></select>
+        <button class="btn btn-accent" onclick="saveRealizadoEdit()">💾 Salvar</button>
+      </div>
+    </div>
+    <div class="tscroll"><table class="edit-table">
+      <thead><tr>
+        <th style="text-align:left">Código</th>
+        <th style="text-align:left">Descrição</th>
+        <th>Valor</th>
+      </tr></thead>
+      <tbody id="bodyRealizadoPreview"></tbody>
+    </table></div>
   </div>
 </div>
 
@@ -391,7 +389,7 @@ function init() {
   if (!selAno.value) { const o = document.createElement('option'); o.value = anoAtual; o.textContent = anoAtual; selAno.appendChild(o); selAno.value = anoAtual; }
 
   // selects de ano nos campos de importação
-  ['impAno','anoOrcInput','selAnoEdit'].forEach(id => {
+  ['impAno','anoOrcInput','selAnoEdit','selAnoEditReal'].forEach(id => {
     const el = document.getElementById(id);
     for (let y = anoAtual - 2; y <= anoAtual + 2; y++) {
       const o = document.createElement('option'); o.value = y; o.textContent = y;
@@ -595,11 +593,9 @@ function renderKPIs(ano, meses) {
     {l:'Realizado '+periodo, v:fmtR(rP), c:'c-accent', s:String(ano)},
     {l:'Orçado '+periodo,    v:fmtR(oP), c:'', s:''},
     {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP>=0?'c-green':'c-red', s:varP>=0?'Abaixo do orçado ✓':'Acima do orçado ✗'},
-    {l:'% Execução',         v:pctP.toFixed(1)+'%', c:pctP>100?'c-red':pctP>=90?'c-amber':'c-green', s:''},
     {l:'Realizado Acumulado',v:fmtR(rA), c:'', s:'Jan – '+MESES[mesAcum-1]+'/'+ano},
     {l:'Orçado Acumulado',   v:fmtR(oA), c:'', s:''},
     {l:'Var. Acumulada',     v:(varA>=0?'+':'')+fmtR(varA,false), c:varA>=0?'c-green':'c-red', s:''},
-    {l:'% Exec. Acumulada',  v:pctA.toFixed(1)+'%', c:pctA>100?'c-red':pctA>=90?'c-amber':'c-green', s:''},
   ];
 
   document.getElementById('kpiGrid').innerHTML = kpis.map(k =>
@@ -684,25 +680,6 @@ function renderCharts(ano, meses) {
     ]},
     options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{size:11}}}},
       scales:{x:{ticks:{color:tc},grid:{color:gc}},y:{ticks:{color:tc,callback:v=>'R$'+(v/1000).toFixed(0)+'k'},grid:{color:gc}}}}
-  });
-
-  // chart 2: % exec por grupo
-  const grupos = getGrupos(ano);
-  const labG = grupos.map(g => g.desc.length>18?g.desc.slice(0,16)+'…':g.desc);
-  const datG = grupos.map(g => {
-    const cs=getContasDoGrupo(ano,g.cod);
-    let o=0,r=0;
-    cs.forEach(c=>{o+=getOrcadoPeriodo(c.cod,ano,meses);r+=getRealizadoPeriodo(c.cod,ano,meses);});
-    return o?(r/o*100).toFixed(1):0;
-  });
-  const colG = datG.map(v => v>100?'rgba(192,57,43,0.6)':v>=90?'rgba(180,83,9,0.6)':'rgba(14,125,85,0.6)');
-  const ctx2 = document.getElementById('chartGrupos').getContext('2d');
-  if (chartGrupos) chartGrupos.destroy();
-  chartGrupos = new Chart(ctx2, {
-    type:'bar',
-    data:{labels:labG.length?labG:['—'],datasets:[{label:'% Exec.',data:datG.length?datG:[0],backgroundColor:colG,borderWidth:0}]},
-    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
-      scales:{x:{ticks:{color:tc,callback:v=>v+'%'},grid:{color:gc},max:120},y:{ticks:{color:tc,font:{size:11}},grid:{display:false}}}}
   });
 }
 
@@ -797,43 +774,50 @@ function clearRealizadoMes() {
 
 function renderRealizadoPreview() {
   const card = document.getElementById('cardRealizadoPreview');
-  const cont = document.getElementById('bodyRealizadoPreview');
-  const keys = Object.keys(REALIZADO).filter(k => REALIZADO[k] && REALIZADO[k].length).sort((a,b) => {
-    const [aa,am] = a.split('-').map(Number);
-    const [ba,bm] = b.split('-').map(Number);
-    return aa !== ba ? aa - ba : am - bm;
-  });
-
-  if (!keys.length) { card.style.display='none'; cont.innerHTML=''; return; }
+  const keys = Object.keys(REALIZADO).filter(k => REALIZADO[k] && REALIZADO[k].length);
+  if (!keys.length) { card.style.display='none'; return; }
   card.style.display='';
 
-  cont.innerHTML = keys.map(key => {
-    const [ano, mes] = key.split('-');
-    const dados = REALIZADO[key];
-    let total = 0;
-    const rows = dados.map(r => {
-      total += r.valor;
-      return `<tr><td>${r.cod}</td><td>${r.desc}</td><td>${fmtR(r.valor)}</td></tr>`;
-    }).join('');
-    return `
-      <div class="tcard" style="flex:1;min-width:320px;max-width:480px">
-        <div class="tcard-hdr">
-          <h3>${MESES_FULL[mes-1]}/${ano}</h3>
-          <span style="font-size:11px;color:var(--text3)">${dados.length} lançamentos</span>
-        </div>
-        <div class="tscroll" style="max-height:400px"><table>
-          <thead><tr>
-            <th style="text-align:left">Código</th>
-            <th style="text-align:left">Descrição</th>
-            <th>Valor</th>
-          </tr></thead>
-          <tbody>
-            ${rows}
-            <tr class="tr-total"><td></td><td>Total</td><td>${fmtR(total)}</td></tr>
-          </tbody>
-        </table></div>
-      </div>`;
-  }).join('');
+  // popula selAnoEditReal se necessário
+  const selAno = document.getElementById('selAnoEditReal');
+  const anosReal = [...new Set(keys.map(k => k.split('-')[0]))].sort();
+  const curAno = selAno.value;
+  selAno.innerHTML = '';
+  anosReal.forEach(a => { const o=document.createElement('option'); o.value=a; o.textContent=a; selAno.appendChild(o); });
+  if (curAno && anosReal.includes(curAno)) selAno.value=curAno;
+  else selAno.value=anosReal[anosReal.length-1];
+
+  const mes = parseInt(document.getElementById('selMesEdit').value);
+  const ano = selAno.value;
+  const key = `${ano}-${mes}`;
+  const dados = REALIZADO[key] || [];
+
+  let html='', total=0;
+  dados.forEach((r, idx) => {
+    total += r.valor;
+    html += `<tr>
+      <td>${r.cod}</td>
+      <td><input type="text" value="${r.desc}" data-key="${key}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="realFieldChange(this)"></td>
+      <td><input type="number" step="0.01" value="${r.valor}" data-key="${key}" data-idx="${idx}" data-field="valor" onchange="realFieldChange(this)"></td>
+    </tr>`;
+  });
+  if (dados.length) html += `<tr class="tr-total"><td></td><td>Total</td><td>${fmtR(total)}</td></tr>`;
+  else html = `<tr><td colspan="3"><div class="empty"><div class="ic">📂</div><p>Nenhum dado para ${MESES_FULL[mes-1]}/${ano}.</p></div></td></tr>`;
+
+  document.getElementById('bodyRealizadoPreview').innerHTML = html;
+}
+
+function realFieldChange(el) {
+  const key=el.dataset.key, idx=parseInt(el.dataset.idx);
+  if (!REALIZADO[key]) return;
+  if (el.dataset.field==='desc') REALIZADO[key][idx].desc=el.value;
+  else REALIZADO[key][idx].valor=parseFloat(el.value)||0;
+}
+
+function saveRealizadoEdit() {
+  localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
+  render();
+  showMsg('msgRealizado','✓ Realizado salvo.','ok');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
