@@ -524,19 +524,11 @@ function getRealizadoAcumAte(cod, ano, mesMax) {
   return s;
 }
 
-function getGrupos(ano) { return getOrcadoRows(ano).filter(r => r.isGroup); }
-function getContas(ano) { return getOrcadoRows(ano).filter(r => !r.isGroup); }
+function getGrupos(ano) { return []; }
+function getContas(ano) { return getOrcadoRows(ano); }
 
 function getContasDoGrupo(ano, grupoCod) {
-  const rows = getOrcadoRows(ano);
-  const idx = rows.findIndex(r => r.cod === grupoCod);
-  if (idx < 0) return [];
-  const res = [];
-  for (let i = idx+1; i < rows.length; i++) {
-    if (rows[i].isGroup) break;
-    res.push(rows[i]);
-  }
-  return res;
+  return getOrcadoRows(ano);
 }
 
 function getMesAcumRef() {
@@ -608,30 +600,24 @@ function renderKPIs(ano, meses) {
 }
 
 function renderResumo(ano, meses) {
-  const grupos = getGrupos(ano);
-  let html = '';
-  let totO=0, totR=0;
-  grupos.forEach(g => {
-    const contas = getContasDoGrupo(ano, g.cod);
-    let gO=0, gR=0;
-    contas.forEach(c => {
-      gO += getOrcadoPeriodo(c.cod, ano, meses);
-      gR += getRealizadoPeriodo(c.cod, ano, meses);
-    });
-    totO+=gO; totR+=gR;
-    const pct = gO ? gR/gO*100 : 0;
+  const contas = getContas(ano);
+  let html = '', totO=0, totR=0;
+  contas.forEach(c => {
+    const cO=getOrcadoPeriodo(c.cod,ano,meses), cR=getRealizadoPeriodo(c.cod,ano,meses);
+    totO+=cO; totR+=cR;
+    const pct = cO ? cR/cO*100 : 0;
     const pc = pct>100?'var(--red)':pct>=90?'var(--amber)':'var(--green)';
-    const varV = gO-gR;
-    html += `<tr class="tr-group">
-      <td>${g.cod}</td><td>${g.desc}</td>
-      <td>${fmtR(gO)}</td><td>${fmtR(gR)}</td>
+    const varV = cO-cR;
+    html += `<tr>
+      <td>${c.cod}</td><td>${c.desc}</td>
+      <td>${fmtR(cO)}</td><td>${fmtR(cR)}</td>
       <td style="color:${varColor(varV)}">${varV>=0?'+':'-'}${fmtR(varV)}</td>
       <td><span class="prog-wrap"><span class="prog-fill" style="width:${Math.min(pct,100)}%;background:${pc}"></span></span>${pct.toFixed(1)}%</td>
     </tr>`;
   });
   if (!html) html = emptyRow(6);
   else {
-    const varT = totO-totR; const pctT = totO ? totR/totO*100 : 0;
+    const varT=totO-totR; const pctT=totO?totR/totO*100:0;
     html += `<tr class="tr-total"><td></td><td>TOTAL GERAL</td>
       <td>${fmtR(totO)}</td><td>${fmtR(totR)}</td>
       <td style="color:${varColor(varT)}">${varT>=0?'+':'-'}${fmtR(varT)}</td>
@@ -641,25 +627,22 @@ function renderResumo(ano, meses) {
 }
 
 function renderContas(ano, meses) {
-  const grupos = getGrupos(ano);
+  const contas = getContas(ano);
   const mesAcum = getMesAcumRef();
   let html='', totOP=0,totRP=0,totOA=0,totRA=0;
-  grupos.forEach(g => {
-    html += `<tr class="tr-group"><td colspan="9">▸ ${g.cod} — ${g.desc}</td></tr>`;
-    getContasDoGrupo(ano, g.cod).forEach(c => {
-      const oP=getOrcadoPeriodo(c.cod,ano,meses), rP=getRealizadoPeriodo(c.cod,ano,meses);
-      const oA=getOrcadoAcumAte(c.cod,ano,mesAcum), rA=getRealizadoAcumAte(c.cod,ano,mesAcum);
-      const varP=oP-rP, varA=oA-rA;
-      totOP+=oP;totRP+=rP;totOA+=oA;totRA+=rA;
-      html += `<tr>
-        <td>${c.cod}</td><td>${c.desc}</td>
-        <td>${fmtR(oP)}</td><td>${fmtR(rP)}</td>
-        <td style="color:${varColor(varP)}">${varP>=0?'+':'-'}${fmtR(varP)}</td>
-        <td>${execBadge(rP,oP)}</td>
-        <td>${fmtR(oA)}</td><td>${fmtR(rA)}</td>
-        <td>${execBadge(rA,oA)}</td>
-      </tr>`;
-    });
+  contas.forEach(c => {
+    const oP=getOrcadoPeriodo(c.cod,ano,meses), rP=getRealizadoPeriodo(c.cod,ano,meses);
+    const oA=getOrcadoAcumAte(c.cod,ano,mesAcum), rA=getRealizadoAcumAte(c.cod,ano,mesAcum);
+    const varP=oP-rP, varA=oA-rA;
+    totOP+=oP;totRP+=rP;totOA+=oA;totRA+=rA;
+    html += `<tr>
+      <td>${c.cod}</td><td>${c.desc}</td>
+      <td>${fmtR(oP)}</td><td>${fmtR(rP)}</td>
+      <td style="color:${varColor(varP)}">${varP>=0?'+':'-'}${fmtR(varP)}</td>
+      <td>${execBadge(rP,oP)}</td>
+      <td>${fmtR(oA)}</td><td>${fmtR(rA)}</td>
+      <td>${execBadge(rA,oA)}</td>
+    </tr>`;
   });
   if (!html) html = emptyRow(9);
   else {
@@ -734,12 +717,11 @@ function importOrcado() {
     const cod = cols[0].trim(); const desc = cols[1].trim();
     if (!cod) { skip++; return; }
     const valores = [];
-    let hasValue = false;
     for (let i=0;i<12;i++) {
-      const v = parseFloat((cols[i+2]||'0').replace(/\./g,'').replace(',','.')) || 0;
-      valores.push(v); if (v) hasValue=true;
+      const raw = (cols[i+2]||'').replace(/\./g,'').replace(',','.').replace(/[^\d\-\.]/g,'');
+      valores.push(parseFloat(raw) || 0);
     }
-    parsed.push({cod,desc,isGroup:!hasValue,valores});
+    parsed.push({cod, desc, isGroup:false, valores});
     ok++;
   });
 
@@ -825,12 +807,8 @@ function renderOrcEdit() {
   const rows = ORCADO[ano] || [];
   let html='';
   rows.forEach((row, idx) => {
-    if (row.isGroup) {
-      html+=`<tr class="tr-group"><td colspan="14">${row.cod} — ${row.desc}</td></tr>`;
-    } else {
-      const vals=row.valores.map((v,i)=>`<td><input type="number" step="0.01" value="${v}" data-ano="${ano}" data-idx="${idx}" data-mi="${i}" onchange="orcFieldChange(this)"></td>`).join('');
-      html+=`<tr><td>${row.cod}</td><td><input type="text" value="${row.desc}" data-ano="${ano}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="orcFieldChange(this)"></td>${vals}</tr>`;
-    }
+    const vals=row.valores.map((v,i)=>`<td><input type="number" step="0.01" value="${v}" data-ano="${ano}" data-idx="${idx}" data-mi="${i}" onchange="orcFieldChange(this)"></td>`).join('');
+    html+=`<tr><td>${row.cod}</td><td><input type="text" value="${row.desc}" data-ano="${ano}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="orcFieldChange(this)"></td>${vals}</tr>`;
   });
   document.getElementById('bodyOrcEdit').innerHTML = html;
 }
@@ -888,14 +866,11 @@ function exportCSV() {
   const mesAcum=getMesAcumRef();
   const periodo=meses.length===12?'Acumulado':meses.map(m=>MESES[m-1]).join('-');
   let csv=`Contas Pagas ${ano} — ${periodo}\n\nCódigo\tDescrição\tOrçado Período\tRealizado Período\tVar R$\t% Exec\tOrç Acumulado\tReal Acumulado\t% Acum\n`;
-  getGrupos(ano).forEach(g => {
-    csv+=`\t${g.desc}\t\t\t\t\t\t\t\n`;
-    getContasDoGrupo(ano,g.cod).forEach(c => {
+  getContas(ano).forEach(c => {
       const oP=getOrcadoPeriodo(c.cod,ano,meses),rP=getRealizadoPeriodo(c.cod,ano,meses);
       const oA=getOrcadoAcumAte(c.cod,ano,mesAcum),rA=getRealizadoAcumAte(c.cod,ano,mesAcum);
       csv+=`${c.cod}\t${c.desc}\t${oP.toFixed(2)}\t${rP.toFixed(2)}\t${(oP-rP).toFixed(2)}\t${oP?(rP/oP*100).toFixed(1)+'%':'—'}\t${oA.toFixed(2)}\t${rA.toFixed(2)}\t${oA?(rA/oA*100).toFixed(1)+'%':'—'}\n`;
     });
-  });
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download=`ContasPagas_${ano}_${periodo}.csv`; a.click();
