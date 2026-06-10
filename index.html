@@ -221,6 +221,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 
   <span class="fb-sep">|</span>
   <button class="btn btn-outline" style="font-size:12px;padding:5px 12px" onclick="exportCSV()">⬇ Excel</button>
+  <button class="btn btn-outline" style="font-size:12px;padding:5px 12px" onclick="backupJSON()">💾 Backup</button>
   <button class="btn btn-outline" style="font-size:12px;padding:5px 12px;color:var(--text3)" onclick="clearAll()">🗑 Limpar tudo</button>
 </div>
 
@@ -561,9 +562,11 @@ function fmtPct(r, o) { return o ? (r/o*100).toFixed(1)+'%' : '—'; }
 function execBadge(r, o) {
   if (!o) return '<span class="badge b0">—</span>';
   const p = r/o*100;
+  // despesas: abaixo do orçado (p < 100) = verde, próximo (90-100) = amarelo, acima = vermelho
   const cls = p > 100 ? 'br' : p >= 90 ? 'by' : 'bg';
   return `<span class="badge ${cls}">${p.toFixed(1)}%</span>`;
 }
+// despesas: variação positiva (gastou menos que orçado) = verde, negativa = vermelho
 function varColor(v) { return v >= 0 ? 'var(--green)' : 'var(--red)'; }
 
 function renderKPIs(ano, meses) {
@@ -591,7 +594,7 @@ function renderKPIs(ano, meses) {
   const kpis = [
     {l:'Realizado '+periodo, v:fmtR(rP), c:'c-accent', s:String(ano)},
     {l:'Orçado '+periodo,    v:fmtR(oP), c:'', s:''},
-    {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP>=0?'c-green':'c-red', s:varP>=0?'Dentro do orçado ✓':'Acima do orçado ✗'},
+    {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP>=0?'c-green':'c-red', s:varP>=0?'Abaixo do orçado ✓':'Acima do orçado ✗'},
     {l:'% Execução',         v:pctP.toFixed(1)+'%', c:pctP>100?'c-red':pctP>=90?'c-amber':'c-green', s:''},
     {l:'Realizado Acumulado',v:fmtR(rA), c:'', s:'Jan – '+MESES[mesAcum-1]+'/'+ano},
     {l:'Orçado Acumulado',   v:fmtR(oA), c:'', s:''},
@@ -922,9 +925,14 @@ function exportCSV() {
   a.download=`ContasPagas_${ano}_${periodo}.csv`; a.click();
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// START
-// ═══════════════════════════════════════════════════════════════════════
+function backupJSON() {
+  const backup = { orcado: ORCADO, realizado: REALIZADO, geradoEm: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `backup_contaspagas_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
 init();
 </script>
 </body>
