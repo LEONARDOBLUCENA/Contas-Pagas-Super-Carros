@@ -389,7 +389,7 @@ function getGrupoId(cod) {
 let ORCADO    = {};
 let REALIZADO = {};
 let selectedMeses  = [1,2,3,4,5,6,7,8,9,10,11,12];
-let selectedGrupos = ['todos'];  // 'todos' ou array de ids
+let selectedGrupos = null; // null = todos; será inicializado no buildMsdGrupo
 let chartMensal = null;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -483,6 +483,7 @@ function closeMsd() { document.getElementById('msdDrop').classList.remove('open'
 
 // ── MSD GRUPOS ───────────────────────────────────────────────────────────
 function buildMsdGrupo() {
+  selectedGrupos = null;
   const cont = document.getElementById('msdGrupoItems');
   cont.innerHTML = GRUPOS_DEF.map(g => `
     <label class="msd-item">
@@ -493,17 +494,24 @@ function buildMsdGrupo() {
       <input type="checkbox" value="outros" checked onchange="msdGrupoChange(this)">
       Outros
     </label>`;
+  updateMsdGrupoBtn();
 }
 function toggleMsdGrupo() { document.getElementById('msdGrupoDrop').classList.toggle('open'); }
 function closeMsdGrupo()  { document.getElementById('msdGrupoDrop').classList.remove('open'); }
 function msdGrupoChange(cb) {
+  // ao desmarcar qualquer item, sai do modo "todos" e monta lista explícita
+  if (selectedGrupos === null) {
+    selectedGrupos = [...GRUPOS_DEF.map(g=>g.id), 'outros'];
+  }
   const v = cb.value;
   if (cb.checked) { if (!selectedGrupos.includes(v)) selectedGrupos.push(v); }
   else selectedGrupos = selectedGrupos.filter(x => x !== v);
+  // se marcou tudo de novo, volta para null
+  if (selectedGrupos.length === GRUPOS_DEF.length + 1) selectedGrupos = null;
   updateMsdGrupoBtn(); closeMsdGrupo(); render();
 }
-function msdGrupoAll()  {
-  selectedGrupos = [...GRUPOS_DEF.map(g=>g.id),'outros'];
+function msdGrupoAll() {
+  selectedGrupos = null;
   document.querySelectorAll('#msdGrupoItems input').forEach(cb => cb.checked=true);
   updateMsdGrupoBtn(); closeMsdGrupo(); render();
 }
@@ -514,9 +522,8 @@ function msdGrupoNone() {
 }
 function updateMsdGrupoBtn() {
   const btn = document.getElementById('msdGrupoBtn');
-  const total = GRUPOS_DEF.length + 1;
+  if (selectedGrupos === null) { btn.textContent='Todos os grupos'; return; }
   if (!selectedGrupos.length) { btn.textContent='Nenhum'; return; }
-  if (selectedGrupos.length === total) { btn.textContent='Todos os grupos'; return; }
   if (selectedGrupos.length === 1) {
     const g = GRUPOS_DEF.find(x=>x.id===selectedGrupos[0]);
     btn.textContent = g ? g.nome : 'Outros';
@@ -625,7 +632,7 @@ function getContas(ano, filtrarGrupo=true) {
         }
       });
     });
-  if (!filtrarGrupo || selectedGrupos.length === GRUPOS_DEF.length + 1) return rows;
+  if (!filtrarGrupo || selectedGrupos === null) return rows;
   return rows.filter(r => selectedGrupos.includes(getGrupoId(r.cod)));
 }
 
@@ -1014,13 +1021,28 @@ function renderOrcEdit() {
 
   const ano = sel.value;
   const rows = ORCADO[ano] || [];
-  let html='', ultimoGrupo='';
+  let html='', ultimoGrupo='', grupoRows=[], ultimoGrupoNome='';
+
+  const flushGrupo = () => {
+    if (!grupoRows.length) return;
+    // linha de subtotal do grupo anterior
+    const subVals = Array.from({length:12}, (_,i) =>
+      grupoRows.reduce((s,r) => s + (r.valores[i]||0), 0)
+    );
+    const subCols = subVals.map(v => `<td style="text-align:right;font-weight:700">${v !== 0 ? v.toLocaleString('pt-BR') : '—'}</td>`).join('');
+    html += `<tr class="tr-total" style="font-size:12px"><td></td><td>↳ Total ${ultimoGrupoNome}</td><td></td>${subCols}</tr>`;
+    grupoRows = [];
+  };
+
   rows.forEach((row, idx) => {
     const gnome = getGrupoNome(row.cod);
     if (gnome !== ultimoGrupo) {
+      flushGrupo();
       html += `<tr class="tr-group"><td colspan="15">▸ ${gnome}</td></tr>`;
       ultimoGrupo = gnome;
+      ultimoGrupoNome = gnome;
     }
+    grupoRows.push(row);
     const vals=row.valores.map((v,i)=>`<td><input type="number" step="0.01" value="${v}" data-ano="${ano}" data-idx="${idx}" data-mi="${i}" onchange="orcFieldChange(this)"></td>`).join('');
     html+=`<tr>
       <td>${row.cod}</td>
@@ -1029,6 +1051,7 @@ function renderOrcEdit() {
       ${vals}
     </tr>`;
   });
+  flushGrupo();
   document.getElementById('bodyOrcEdit').innerHTML = html;
 }
 
