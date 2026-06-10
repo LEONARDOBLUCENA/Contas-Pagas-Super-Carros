@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BI Contas Pagas · Super Carros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f5f5f2; --surface:#fff; --surface2:#f0efec; --surface3:#e8e7e3;
+  --border:rgba(0,0,0,.07); --border2:rgba(0,0,0,.13);
+  --text:#181816; --text2:#6b6b67; --text3:#a0a09b;
+  --accent:#c0392b; --accent-bg:#fdecea;
+  --green:#0e7d55; --green-bg:#e6f7f1;
+  --amber:#b45309; --amber-bg:#fef3e2;
+  --red:#c0392b; --red-bg:#fdecea;
+  --r:8px; --rl:12px;
+  --sh:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.04);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#131312; --surface:#1d1d1b; --surface2:#252523; --surface3:#2e2e2b;
+  --border:rgba(255,255,255,.07); --border2:rgba(255,255,255,.13);
+  --text:#eeeee8; --text2:#9a9a94; --text3:#68685f;
+  --accent:#e74c3c; --accent-bg:#2a1010;
+  --green:#2dd4a0; --green-bg:#0c2a1e;
+  --amber:#f5a623; --amber-bg:#271d09;
+  --red:#f07070; --red-bg:#2a1010;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+/* ── HEADER ── */
+header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 24px;height:52px;display:flex;align-items:center;
+  justify-content:space-between;position:sticky;top:0;z-index:200;
+  box-shadow:var(--sh);
+}
+.logo{font-size:15px;font-weight:700;letter-spacing:.02em;color:var(--accent)}
+.logo span{color:var(--text2);font-weight:400;font-size:12px;margin-left:8px}
+nav{display:flex;gap:2px}
+.tab-btn{
+  background:none;border:none;color:var(--text2);cursor:pointer;
+  padding:6px 15px;border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;
+  font-weight:500;transition:background .15s,color .15s;
+}
+.tab-btn:hover{background:var(--surface2);color:var(--text)}
+.tab-btn.active{background:var(--accent);color:#fff;font-weight:600}
+
+/* ── FILTERS BAR ── */
+.filters-bar{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:8px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.fb-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.fb-sep{color:var(--border2);font-size:16px}
+select{
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  padding:5px 10px;border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
+}
+select:focus{outline:2px solid var(--accent);outline-offset:1px}
+
+/* ── MSD (multiselect dropdown) ── */
+.msd-wrap{position:relative}
+.msd-btn{
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  padding:5px 32px 5px 10px;border-radius:6px;font-size:13px;
+  font-family:'DM Sans',sans-serif;cursor:pointer;min-width:160px;
+  text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  position:relative;
+}
+.msd-btn::after{content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3)}
+.msd-dropdown{
+  display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:300;
+  background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);
+  box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;padding:6px 0;
+}
+.msd-dropdown.open{display:block}
+.msd-item{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;
+  font-size:13px;color:var(--text);transition:background .1s;
+}
+.msd-item:hover{background:var(--surface2)}
+.msd-item input[type=checkbox]{accent-color:var(--accent);cursor:pointer;width:14px;height:14px}
+.msd-actions{display:flex;gap:6px;padding:6px 12px 4px;border-top:1px solid var(--border)}
+.msd-link{font-size:11px;color:var(--accent);cursor:pointer;background:none;border:none;font-family:'DM Sans',sans-serif;padding:0}
+.msd-link:hover{text-decoration:underline}
+
+/* ── MAIN ── */
+main{padding:20px 24px;max-width:1400px;margin:0 auto}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── KPI GRID ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;margin-bottom:20px}
+.kpi-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);
+  padding:14px 16px;box-shadow:var(--sh);
+}
+.kpi-card .kl{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.kpi-card .kv{font-size:20px;font-weight:700;color:var(--text);line-height:1;font-family:'DM Mono',monospace}
+.kpi-card .ks{font-size:11px;color:var(--text3);margin-top:4px}
+.kpi-card.c-red{border-left:3px solid var(--red)}.kpi-card.c-red .kv{color:var(--red)}
+.kpi-card.c-green{border-left:3px solid var(--green)}.kpi-card.c-green .kv{color:var(--green)}
+.kpi-card.c-amber{border-left:3px solid var(--amber)}.kpi-card.c-amber .kv{color:var(--amber)}
+.kpi-card.c-accent{border-left:3px solid var(--accent)}.kpi-card.c-accent .kv{color:var(--accent)}
+
+/* ── CHARTS ── */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+@media(max-width:860px){.charts-row{grid-template-columns:1fr}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;box-shadow:var(--sh)}
+.chart-card h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-bottom:12px}
+canvas{width:100%!important}
+
+/* ── TABLE CARD ── */
+.tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px;box-shadow:var(--sh)}
+.tcard-hdr{
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.tcard-hdr h3{font-size:13px;font-weight:600}
+.tscroll{overflow-x:auto;max-height:480px;overflow-y:auto}
+table{width:100%;border-collapse:collapse}
+thead th{
+  background:var(--surface2);color:var(--text2);font-size:11px;text-transform:uppercase;
+  letter-spacing:.05em;font-weight:600;padding:9px 12px;text-align:right;
+  border-bottom:1px solid var(--border2);position:sticky;top:0;z-index:2;
+}
+thead th:first-child,thead th:nth-child(2){text-align:left}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:hover{background:var(--surface2)}
+tbody td{padding:8px 12px;text-align:right;color:var(--text);font-size:13px}
+tbody td:first-child{text-align:left;color:var(--text2);font-size:12px;font-family:'DM Mono',monospace}
+tbody td:nth-child(2){text-align:left;font-weight:500}
+.tr-group td{background:var(--surface3);font-weight:700;color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+.tr-total td{background:var(--surface2);font-weight:700;border-top:2px solid var(--border2)}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace}
+.badge.br{background:var(--red-bg);color:var(--red)}
+.badge.by{background:var(--amber-bg);color:var(--amber)}
+.badge.bg{background:var(--green-bg);color:var(--green)}
+.badge.b0{background:var(--surface3);color:var(--text3)}
+.prog-wrap{width:60px;height:5px;background:var(--surface3);border-radius:3px;display:inline-block;vertical-align:middle;margin-right:5px}
+.prog-fill{height:100%;border-radius:3px}
+
+/* ── IMPORT / ORCAMENTO ── */
+.imp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+@media(max-width:800px){.imp-grid{grid-template-columns:1fr}}
+.imp-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:18px;box-shadow:var(--sh)}
+.imp-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-bottom:10px}
+.imp-box p{font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.55}
+textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  border-radius:6px;padding:9px;font-family:'DM Mono',monospace;font-size:12px;
+  resize:vertical;min-height:110px;
+}
+textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 14px;border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;
+  cursor:pointer;border:none;font-weight:600;transition:opacity .15s;
+}
+.btn:hover{opacity:.85}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-outline{background:none;border:1px solid var(--border2);color:var(--text)}
+.btn-red{background:var(--red);color:#fff}
+.btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.msg{font-size:12px;padding:7px 11px;border-radius:6px;margin-top:8px}
+.msg.ok{background:var(--green-bg);color:var(--green)}
+.msg.err{background:var(--red-bg);color:var(--red)}
+.info-line{margin-top:12px;font-size:11px;color:var(--text3)}
+.info-line strong{color:var(--text2)}
+
+/* edit table */
+.edit-table td input{background:transparent;border:none;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;width:100%;text-align:right;padding:0}
+.edit-table td input:focus{outline:1px solid var(--accent);border-radius:3px}
+.edit-table td:nth-child(2) input{text-align:left}
+
+/* empty */
+.empty{text-align:center;padding:48px 20px;color:var(--text3)}
+.empty .ic{font-size:36px;margin-bottom:10px}
+.empty p{font-size:13px;line-height:1.6}
+
+/* flex row util */
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px}
+.field label{font-size:11px;color:var(--text3);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SUPER CARROS <span>· Contas Pagas</span></div>
+  <nav>
+    <button class="tab-btn active" onclick="setTab('dashboard',this)">Dashboard</button>
+    <button class="tab-btn" onclick="setTab('contas',this)">Contas Pagas</button>
+    <button class="tab-btn" onclick="setTab('orcamento',this)">Orçamento Anual</button>
+  </nav>
+</header>
+
+<div class="filters-bar">
+  <span class="fb-label">Ano</span>
+  <select id="selAno" onchange="onAnoChange()"></select>
+
+  <span class="fb-sep">|</span>
+  <span class="fb-label">Meses</span>
+  <div class="msd-wrap" id="msdWrap">
+    <button class="msd-btn" id="msdBtn" onclick="toggleMsd()">Todos os meses</button>
+    <div class="msd-dropdown" id="msdDrop">
+      <div id="msdItems"></div>
+      <div class="msd-actions">
+        <button class="msd-link" onclick="msdAll()">Todos</button>
+        <button class="msd-link" onclick="msdNone()">Nenhum</button>
+        <button class="msd-link" onclick="msdQ(1)">T1</button>
+        <button class="msd-link" onclick="msdQ(2)">T2</button>
+        <button class="msd-link" onclick="msdQ(3)">T3</button>
+        <button class="msd-link" onclick="msdQ(4)">T4</button>
+      </div>
+    </div>
+  </div>
+
+  <span class="fb-sep">|</span>
+  <button class="btn btn-outline" style="font-size:12px;padding:5px 12px" onclick="exportCSV()">⬇ Excel</button>
+  <button class="btn btn-outline" style="font-size:12px;padding:5px 12px;color:var(--text3)" onclick="clearAll()">🗑 Limpar tudo</button>
+</div>
+
+<main>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="tab-dashboard" class="tab-panel active">
+  <div class="kpi-grid" id="kpiGrid"></div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>Orçado vs Realizado — Mês a Mês</h3>
+      <canvas id="chartMensal" height="200"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>% Execução por Grupo</h3>
+      <canvas id="chartGrupos" height="200"></canvas>
+    </div>
+  </div>
+  <div class="tcard">
+    <div class="tcard-hdr"><h3>Resumo por Grupo</h3></div>
+    <div class="tscroll"><table>
+      <thead><tr>
+        <th style="text-align:left">Cód.</th>
+        <th style="text-align:left">Grupo</th>
+        <th>Orçado</th><th>Realizado</th><th>Variação R$</th><th>% Exec.</th>
+      </tr></thead>
+      <tbody id="bodyResumo"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══ CONTAS PAGAS ══ -->
+<div id="tab-contas" class="tab-panel">
+  <div class="tcard">
+    <div class="tcard-hdr"><h3>Detalhamento por Conta Contábil</h3></div>
+    <div class="tscroll"><table>
+      <thead><tr>
+        <th style="text-align:left">Código</th>
+        <th style="text-align:left">Descrição</th>
+        <th>Orçado Período</th><th>Realizado Período</th>
+        <th>Var. R$</th><th>% Exec.</th>
+        <th>Orç. Acumulado</th><th>Real. Acumulado</th><th>% Acum.</th>
+      </tr></thead>
+      <tbody id="bodyContas"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══ ORÇAMENTO ANUAL ══ -->
+<div id="tab-orcamento" class="tab-panel">
+  <div class="imp-grid">
+
+    <!-- ORÇADO -->
+    <div class="imp-box">
+      <h3>📋 Importar Orçamento</h3>
+      <p>Informe o ano e cole do Excel:<br>
+      <strong>Código | Descrição | Jan | Fev | Mar | Abr | Mai | Jun | Jul | Ago | Set | Out | Nov | Dez</strong><br>
+      Linhas sem valores numéricos → grupos/pais.</p>
+      <div class="row">
+        <div class="field">
+          <label>Ano do Orçamento</label>
+          <select id="anoOrcInput"></select>
+        </div>
+      </div>
+      <textarea id="txtOrcado" placeholder="Cole aqui o orçamento do Excel (Tab-separado)..."></textarea>
+      <div class="btn-row">
+        <button class="btn btn-accent" onclick="importOrcado()">Importar</button>
+        <button class="btn btn-outline" onclick="clearOrcadoAno()">Limpar Ano</button>
+      </div>
+      <div id="msgOrcado"></div>
+      <div class="info-line">Anos com orçamento: <strong id="infoOrcado">—</strong></div>
+    </div>
+
+    <!-- REALIZADO -->
+    <div class="imp-box">
+      <h3>💳 Importar Realizado</h3>
+      <p>Selecione mês/ano e cole do Excel:<br>
+      <strong>Código | Descrição | Valor</strong><br>
+      Cada importação substitui o mês selecionado.</p>
+      <div class="row">
+        <div class="field">
+          <label>Mês</label>
+          <select id="impMes">
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+            <option value="3">Março</option><option value="4">Abril</option>
+            <option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option>
+            <option value="9">Setembro</option><option value="10">Outubro</option>
+            <option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ano</label>
+          <select id="impAno"></select>
+        </div>
+      </div>
+      <textarea id="txtRealizado" placeholder="Cole aqui o realizado do Excel (Tab-separado)..."></textarea>
+      <div class="btn-row">
+        <button class="btn btn-accent" onclick="importRealizado()">Importar</button>
+        <button class="btn btn-red" onclick="clearRealizadoMes()">Limpar Mês</button>
+      </div>
+      <div id="msgRealizado"></div>
+      <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
+    </div>
+  </div>
+
+  <!-- EDIÇÃO INLINE ORÇADO -->
+  <div class="tcard" id="cardOrcEdit" style="display:none">
+    <div class="tcard-hdr">
+      <h3 id="tituloOrcEdit">Orçamento — Edição inline</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="selAnoEdit" onchange="renderOrcEdit()"></select>
+        <button class="btn btn-accent" onclick="saveOrcEdit()">💾 Salvar</button>
+      </div>
+    </div>
+    <div class="tscroll"><table class="edit-table">
+      <thead><tr>
+        <th style="text-align:left">Cód.</th><th style="text-align:left">Descrição</th>
+        <th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th><th>Mai</th><th>Jun</th>
+        <th>Jul</th><th>Ago</th><th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+      </tr></thead>
+      <tbody id="bodyOrcEdit"></tbody>
+    </table></div>
+  </div>
+</div>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════
+const LS_ORC  = 'cp_sc_orc_v2';   // { "2025": [{cod,desc,isGroup,valores[12]}] }
+const LS_REAL = 'cp_sc_real_v2';  // { "2025-3": [{cod,desc,valor}] }
+
+const MESES      = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+let ORCADO   = {};   // { "2025": [{cod,desc,isGroup,valores[12]}] }
+let REALIZADO= {};   // { "2025-3": [{cod,desc,valor}] }
+let selectedMeses = [1,2,3,4,5,6,7,8,9,10,11,12]; // meses selecionados no MSD
+let chartMensal = null, chartGrupos = null;
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+function init() {
+  const orc = localStorage.getItem(LS_ORC);
+  if (orc) ORCADO = JSON.parse(orc);
+  const rel = localStorage.getItem(LS_REAL);
+  if (rel) REALIZADO = JSON.parse(rel);
+
+  const now = new Date();
+  const anoAtual = now.getFullYear();
+
+  // selects de ano no filtro principal
+  const selAno = document.getElementById('selAno');
+  getAnos().forEach(a => {
+    const o = document.createElement('option');
+    o.value = a; o.textContent = a;
+    if (a === anoAtual) o.selected = true;
+    selAno.appendChild(o);
+  });
+  if (!selAno.value) { const o = document.createElement('option'); o.value = anoAtual; o.textContent = anoAtual; selAno.appendChild(o); selAno.value = anoAtual; }
+
+  // selects de ano nos campos de importação
+  ['impAno','anoOrcInput','selAnoEdit'].forEach(id => {
+    const el = document.getElementById(id);
+    for (let y = anoAtual - 2; y <= anoAtual + 2; y++) {
+      const o = document.createElement('option'); o.value = y; o.textContent = y;
+      if (y === anoAtual) o.selected = true;
+      el.appendChild(o);
+    }
+  });
+  document.getElementById('impMes').value = now.getMonth() + 1;
+
+  // MSD meses — começa todos selecionados
+  buildMsd();
+  // seleciona mês atual por padrão
+  selectedMeses = [now.getMonth() + 1];
+  updateMsdUI();
+
+  updateInfos();
+  render();
+
+  // fecha MSD ao clicar fora
+  document.addEventListener('click', e => {
+    if (!document.getElementById('msdWrap').contains(e.target)) {
+      document.getElementById('msdDrop').classList.remove('open');
+    }
+  });
+}
+
+function getAnos() {
+  const set = new Set([new Date().getFullYear()]);
+  Object.keys(ORCADO).forEach(a => set.add(parseInt(a)));
+  Object.keys(REALIZADO).forEach(k => set.add(parseInt(k.split('-')[0])));
+  return [...set].sort();
+}
+
+function onAnoChange() {
+  // ao mudar ano, re-popula selAnoEdit se precisar
+  const ano = document.getElementById('selAno').value;
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════════
+function setTab(t, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + t).classList.add('active');
+  el.classList.add('active');
+  if (t === 'orcamento') renderOrcEdit();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MSD MULTISELECT MESES
+// ═══════════════════════════════════════════════════════════════════════
+function buildMsd() {
+  const cont = document.getElementById('msdItems');
+  cont.innerHTML = MESES_FULL.map((m, i) => `
+    <label class="msd-item">
+      <input type="checkbox" value="${i+1}" checked onchange="msdChange(this)">
+      ${m}
+    </label>`).join('');
+}
+
+function toggleMsd() {
+  document.getElementById('msdDrop').classList.toggle('open');
+}
+
+function msdChange(cb) {
+  const v = parseInt(cb.value);
+  if (cb.checked) { if (!selectedMeses.includes(v)) selectedMeses.push(v); }
+  else selectedMeses = selectedMeses.filter(x => x !== v);
+  selectedMeses.sort((a,b) => a-b);
+  updateMsdBtn();
+  render();
+}
+
+function msdAll()  { selectedMeses=[1,2,3,4,5,6,7,8,9,10,11,12]; updateMsdUI(); render(); }
+function msdNone() { selectedMeses=[]; updateMsdUI(); render(); }
+function msdQ(q)   { const m={1:[1,2,3],2:[4,5,6],3:[7,8,9],4:[10,11,12]}; selectedMeses=[...m[q]]; updateMsdUI(); render(); }
+
+function updateMsdUI() {
+  document.querySelectorAll('#msdItems input').forEach(cb => {
+    cb.checked = selectedMeses.includes(parseInt(cb.value));
+  });
+  updateMsdBtn();
+}
+
+function updateMsdBtn() {
+  const btn = document.getElementById('msdBtn');
+  if (!selectedMeses.length) { btn.textContent = 'Nenhum'; return; }
+  if (selectedMeses.length === 12) { btn.textContent = 'Todos os meses'; return; }
+  if (selectedMeses.length <= 3) {
+    btn.textContent = selectedMeses.map(m => MESES[m-1]).join(', ');
+  } else {
+    btn.textContent = selectedMeses.length + ' meses';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DATA HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+function getOrcadoRows(ano) {
+  return ORCADO[String(ano)] || [];
+}
+
+function getOrcadoPeriodo(cod, ano, meses) {
+  const rows = getOrcadoRows(ano);
+  const row = rows.find(r => r.cod === cod);
+  if (!row || row.isGroup) return 0;
+  return meses.reduce((s, m) => s + (row.valores[m-1] || 0), 0);
+}
+
+function getOrcadoAcumAte(cod, ano, mesMax) {
+  const rows = getOrcadoRows(ano);
+  const row = rows.find(r => r.cod === cod);
+  if (!row || row.isGroup) return 0;
+  let s = 0;
+  for (let m = 1; m <= mesMax; m++) s += row.valores[m-1] || 0;
+  return s;
+}
+
+function getRealizadoPeriodo(cod, ano, meses) {
+  return meses.reduce((s, m) => {
+    const key = `${ano}-${m}`;
+    return s + (REALIZADO[key] || []).filter(r => r.cod === cod).reduce((a, r) => a + r.valor, 0);
+  }, 0);
+}
+
+function getRealizadoAcumAte(cod, ano, mesMax) {
+  let s = 0;
+  for (let m = 1; m <= mesMax; m++) {
+    const key = `${ano}-${m}`;
+    s += (REALIZADO[key] || []).filter(r => r.cod === cod).reduce((a, r) => a + r.valor, 0);
+  }
+  return s;
+}
+
+function getGrupos(ano) { return getOrcadoRows(ano).filter(r => r.isGroup); }
+function getContas(ano) { return getOrcadoRows(ano).filter(r => !r.isGroup); }
+
+function getContasDoGrupo(ano, grupoCod) {
+  const rows = getOrcadoRows(ano);
+  const idx = rows.findIndex(r => r.cod === grupoCod);
+  if (idx < 0) return [];
+  const res = [];
+  for (let i = idx+1; i < rows.length; i++) {
+    if (rows[i].isGroup) break;
+    res.push(rows[i]);
+  }
+  return res;
+}
+
+function getMesAcumRef() {
+  // usa o maior mês selecionado para acumulado
+  return selectedMeses.length ? Math.max(...selectedMeses) : 12;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════════
+function render() {
+  const ano = parseInt(document.getElementById('selAno').value) || new Date().getFullYear();
+  const meses = selectedMeses.length ? selectedMeses : [1,2,3,4,5,6,7,8,9,10,11,12];
+  renderKPIs(ano, meses);
+  renderResumo(ano, meses);
+  renderContas(ano, meses);
+  renderCharts(ano, meses);
+}
+
+function fmtR(v, abs=true) {
+  const n = abs ? Math.abs(v) : v;
+  return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtPct(r, o) { return o ? (r/o*100).toFixed(1)+'%' : '—'; }
+function execBadge(r, o) {
+  if (!o) return '<span class="badge b0">—</span>';
+  const p = r/o*100;
+  const cls = p > 100 ? 'br' : p >= 90 ? 'by' : 'bg';
+  return `<span class="badge ${cls}">${p.toFixed(1)}%</span>`;
+}
+function varColor(v) { return v >= 0 ? 'var(--green)' : 'var(--red)'; }
+
+function renderKPIs(ano, meses) {
+  const contas = getContas(ano);
+  let oP=0, rP=0;
+  const mesAcum = getMesAcumRef();
+  let oA=0, rA=0;
+
+  contas.forEach(c => {
+    oP += getOrcadoPeriodo(c.cod, ano, meses);
+    rP += getRealizadoPeriodo(c.cod, ano, meses);
+    oA += getOrcadoAcumAte(c.cod, ano, mesAcum);
+    rA += getRealizadoAcumAte(c.cod, ano, mesAcum);
+  });
+
+  const varP = oP - rP;
+  const pctP = oP ? rP/oP*100 : 0;
+  const varA = oA - rA;
+  const pctA = oA ? rA/oA*100 : 0;
+
+  const periodo = selectedMeses.length === 12 ? 'Ano' :
+    selectedMeses.length === 1 ? MESES_FULL[selectedMeses[0]-1] :
+    MESES[selectedMeses[0]-1]+' – '+MESES[selectedMeses[selectedMeses.length-1]-1];
+
+  const kpis = [
+    {l:'Realizado '+periodo, v:fmtR(rP), c:'c-accent', s:String(ano)},
+    {l:'Orçado '+periodo,    v:fmtR(oP), c:'', s:''},
+    {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP>=0?'c-green':'c-red', s:varP>=0?'Dentro do orçado ✓':'Acima do orçado ✗'},
+    {l:'% Execução',         v:pctP.toFixed(1)+'%', c:pctP>100?'c-red':pctP>=90?'c-amber':'c-green', s:''},
+    {l:'Realizado Acumulado',v:fmtR(rA), c:'', s:'Jan – '+MESES[mesAcum-1]+'/'+ano},
+    {l:'Orçado Acumulado',   v:fmtR(oA), c:'', s:''},
+    {l:'Var. Acumulada',     v:(varA>=0?'+':'')+fmtR(varA,false), c:varA>=0?'c-green':'c-red', s:''},
+    {l:'% Exec. Acumulada',  v:pctA.toFixed(1)+'%', c:pctA>100?'c-red':pctA>=90?'c-amber':'c-green', s:''},
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k =>
+    `<div class="kpi-card ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div>${k.s?`<div class="ks">${k.s}</div>`:''}</div>`
+  ).join('');
+}
+
+function renderResumo(ano, meses) {
+  const grupos = getGrupos(ano);
+  let html = '';
+  let totO=0, totR=0;
+  grupos.forEach(g => {
+    const contas = getContasDoGrupo(ano, g.cod);
+    let gO=0, gR=0;
+    contas.forEach(c => {
+      gO += getOrcadoPeriodo(c.cod, ano, meses);
+      gR += getRealizadoPeriodo(c.cod, ano, meses);
+    });
+    totO+=gO; totR+=gR;
+    const pct = gO ? gR/gO*100 : 0;
+    const pc = pct>100?'var(--red)':pct>=90?'var(--amber)':'var(--green)';
+    const varV = gO-gR;
+    html += `<tr class="tr-group">
+      <td>${g.cod}</td><td>${g.desc}</td>
+      <td>${fmtR(gO)}</td><td>${fmtR(gR)}</td>
+      <td style="color:${varColor(varV)}">${varV>=0?'+':'-'}${fmtR(varV)}</td>
+      <td><span class="prog-wrap"><span class="prog-fill" style="width:${Math.min(pct,100)}%;background:${pc}"></span></span>${pct.toFixed(1)}%</td>
+    </tr>`;
+  });
+  if (!html) html = emptyRow(6);
+  else {
+    const varT = totO-totR; const pctT = totO ? totR/totO*100 : 0;
+    html += `<tr class="tr-total"><td></td><td>TOTAL GERAL</td>
+      <td>${fmtR(totO)}</td><td>${fmtR(totR)}</td>
+      <td style="color:${varColor(varT)}">${varT>=0?'+':'-'}${fmtR(varT)}</td>
+      <td>${pctT.toFixed(1)}%</td></tr>`;
+  }
+  document.getElementById('bodyResumo').innerHTML = html;
+}
+
+function renderContas(ano, meses) {
+  const grupos = getGrupos(ano);
+  const mesAcum = getMesAcumRef();
+  let html='', totOP=0,totRP=0,totOA=0,totRA=0;
+  grupos.forEach(g => {
+    html += `<tr class="tr-group"><td colspan="9">▸ ${g.cod} — ${g.desc}</td></tr>`;
+    getContasDoGrupo(ano, g.cod).forEach(c => {
+      const oP=getOrcadoPeriodo(c.cod,ano,meses), rP=getRealizadoPeriodo(c.cod,ano,meses);
+      const oA=getOrcadoAcumAte(c.cod,ano,mesAcum), rA=getRealizadoAcumAte(c.cod,ano,mesAcum);
+      const varP=oP-rP, varA=oA-rA;
+      totOP+=oP;totRP+=rP;totOA+=oA;totRA+=rA;
+      html += `<tr>
+        <td>${c.cod}</td><td>${c.desc}</td>
+        <td>${fmtR(oP)}</td><td>${fmtR(rP)}</td>
+        <td style="color:${varColor(varP)}">${varP>=0?'+':'-'}${fmtR(varP)}</td>
+        <td>${execBadge(rP,oP)}</td>
+        <td>${fmtR(oA)}</td><td>${fmtR(rA)}</td>
+        <td>${execBadge(rA,oA)}</td>
+      </tr>`;
+    });
+  });
+  if (!html) html = emptyRow(9);
+  else {
+    const vP=totOP-totRP, vA=totOA-totRA;
+    html += `<tr class="tr-total"><td></td><td>TOTAL</td>
+      <td>${fmtR(totOP)}</td><td>${fmtR(totRP)}</td>
+      <td style="color:${varColor(vP)}">${vP>=0?'+':'-'}${fmtR(vP)}</td>
+      <td>${execBadge(totRP,totOP)}</td>
+      <td>${fmtR(totOA)}</td><td>${fmtR(totRA)}</td>
+      <td>${execBadge(totRA,totOA)}</td>
+    </tr>`;
+  }
+  document.getElementById('bodyContas').innerHTML = html;
+}
+
+function renderCharts(ano, meses) {
+  const dark = window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc = dark ? '#3a3a38' : '#e8e7e3';
+  const tc = dark ? '#9a9a94' : '#9a9a94';
+
+  // chart 1: orc vs real por mês
+  const dOrc = MESES.map((_,i) => getContas(ano).reduce((s,c) => s+getOrcadoPeriodo(c.cod,ano,[i+1]),0));
+  const dReal = MESES.map((_,i) => getContas(ano).reduce((s,c) => s+getRealizadoPeriodo(c.cod,ano,[i+1]),0));
+  const ctx1 = document.getElementById('chartMensal').getContext('2d');
+  if (chartMensal) chartMensal.destroy();
+  chartMensal = new Chart(ctx1, {
+    type:'bar',
+    data:{labels:MESES,datasets:[
+      {label:'Orçado',data:dOrc,backgroundColor:'rgba(180,83,9,0.25)',borderColor:'#b45309',borderWidth:1},
+      {label:'Realizado',data:dReal,backgroundColor:'rgba(14,125,85,0.35)',borderColor:'#0e7d55',borderWidth:1},
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{size:11}}}},
+      scales:{x:{ticks:{color:tc},grid:{color:gc}},y:{ticks:{color:tc,callback:v=>'R$'+(v/1000).toFixed(0)+'k'},grid:{color:gc}}}}
+  });
+
+  // chart 2: % exec por grupo
+  const grupos = getGrupos(ano);
+  const labG = grupos.map(g => g.desc.length>18?g.desc.slice(0,16)+'…':g.desc);
+  const datG = grupos.map(g => {
+    const cs=getContasDoGrupo(ano,g.cod);
+    let o=0,r=0;
+    cs.forEach(c=>{o+=getOrcadoPeriodo(c.cod,ano,meses);r+=getRealizadoPeriodo(c.cod,ano,meses);});
+    return o?(r/o*100).toFixed(1):0;
+  });
+  const colG = datG.map(v => v>100?'rgba(192,57,43,0.6)':v>=90?'rgba(180,83,9,0.6)':'rgba(14,125,85,0.6)');
+  const ctx2 = document.getElementById('chartGrupos').getContext('2d');
+  if (chartGrupos) chartGrupos.destroy();
+  chartGrupos = new Chart(ctx2, {
+    type:'bar',
+    data:{labels:labG.length?labG:['—'],datasets:[{label:'% Exec.',data:datG.length?datG:[0],backgroundColor:colG,borderWidth:0}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:tc,callback:v=>v+'%'},grid:{color:gc},max:120},y:{ticks:{color:tc,font:{size:11}},grid:{display:false}}}}
+  });
+}
+
+function emptyRow(cols) {
+  return `<tr><td colspan="${cols}"><div class="empty"><div class="ic">📂</div><p>Nenhum dado importado.<br>Vá em <strong>Orçamento Anual</strong> para começar.</p></div></td></tr>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// IMPORT ORÇADO
+// ═══════════════════════════════════════════════════════════════════════
+function importOrcado() {
+  const raw = document.getElementById('txtOrcado').value.trim();
+  const ano = document.getElementById('anoOrcInput').value;
+  if (!raw) { showMsg('msgOrcado','Cole os dados antes de importar.','err'); return; }
+
+  const rows = raw.split('\n').map(r => r.split('\t'));
+  const parsed = []; let ok=0, skip=0;
+  rows.forEach(cols => {
+    if (cols.length < 2) { skip++; return; }
+    const cod = cols[0].trim(); const desc = cols[1].trim();
+    if (!cod) { skip++; return; }
+    const valores = [];
+    let hasValue = false;
+    for (let i=0;i<12;i++) {
+      const v = parseFloat((cols[i+2]||'0').replace(/\./g,'').replace(',','.')) || 0;
+      valores.push(v); if (v) hasValue=true;
+    }
+    parsed.push({cod,desc,isGroup:!hasValue,valores});
+    ok++;
+  });
+
+  if (!ok) { showMsg('msgOrcado','Nenhuma linha válida.','err'); return; }
+  ORCADO[ano] = parsed;
+  localStorage.setItem(LS_ORC, JSON.stringify(ORCADO));
+  // garante ano no select principal
+  addAnoToSelects(parseInt(ano));
+  updateInfos();
+  renderOrcEdit();
+  render();
+  showMsg('msgOrcado',`✓ ${ok} linhas importadas para ${ano} (${parsed.filter(r=>r.isGroup).length} grupos, ${parsed.filter(r=>!r.isGroup).length} contas).`,'ok');
+}
+
+function clearOrcadoAno() {
+  const ano = document.getElementById('anoOrcInput').value;
+  if (!ORCADO[ano]) { showMsg('msgOrcado','Nenhum orçamento para este ano.','err'); return; }
+  if (!confirm(`Limpar orçamento de ${ano}?`)) return;
+  delete ORCADO[ano];
+  localStorage.setItem(LS_ORC, JSON.stringify(ORCADO));
+  updateInfos(); renderOrcEdit(); render();
+  showMsg('msgOrcado',`Orçamento de ${ano} removido.`,'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// IMPORT REALIZADO
+// ═══════════════════════════════════════════════════════════════════════
+function importRealizado() {
+  const raw = document.getElementById('txtRealizado').value.trim();
+  const mes = parseInt(document.getElementById('impMes').value);
+  const ano = document.getElementById('impAno').value;
+  if (!raw) { showMsg('msgRealizado','Cole os dados antes de importar.','err'); return; }
+
+  const rows = raw.split('\n').map(r => r.split('\t'));
+  const parsed = []; let ok=0,skip=0;
+  rows.forEach(cols => {
+    if (cols.length < 3) { skip++; return; }
+    const cod=cols[0].trim(), desc=cols[1].trim();
+    const valor=parseFloat((cols[2]||'0').replace(/\./g,'').replace(',','.'));
+    if (!cod||isNaN(valor)) { skip++; return; }
+    parsed.push({cod,desc,valor}); ok++;
+  });
+
+  if (!ok) { showMsg('msgRealizado','Nenhuma linha válida.','err'); return; }
+  const key=`${ano}-${mes}`;
+  REALIZADO[key] = parsed;
+  localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
+  addAnoToSelects(parseInt(ano));
+  updateInfos(); render();
+  showMsg('msgRealizado',`✓ ${ok} lançamentos importados para ${MESES_FULL[mes-1]}/${ano}.`,'ok');
+  document.getElementById('txtRealizado').value='';
+}
+
+function clearRealizadoMes() {
+  const mes=parseInt(document.getElementById('impMes').value);
+  const ano=document.getElementById('impAno').value;
+  const key=`${ano}-${mes}`;
+  if (!REALIZADO[key]) { showMsg('msgRealizado','Nenhum dado para este período.','err'); return; }
+  if (!confirm(`Limpar realizado de ${MESES_FULL[mes-1]}/${ano}?`)) return;
+  delete REALIZADO[key];
+  localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
+  updateInfos(); render();
+  showMsg('msgRealizado',`Dados de ${MESES_FULL[mes-1]}/${ano} removidos.`,'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EDIT INLINE ORÇADO
+// ═══════════════════════════════════════════════════════════════════════
+function renderOrcEdit() {
+  const anos = Object.keys(ORCADO).sort();
+  const card = document.getElementById('cardOrcEdit');
+  if (!anos.length) { card.style.display='none'; return; }
+  card.style.display='';
+
+  // popula select do edit
+  const sel = document.getElementById('selAnoEdit');
+  const cur = sel.value;
+  sel.innerHTML = '';
+  anos.forEach(a => { const o=document.createElement('option'); o.value=a; o.textContent=a; sel.appendChild(o); });
+  if (cur && anos.includes(cur)) sel.value=cur; else sel.value=anos[anos.length-1];
+
+  const ano = sel.value;
+  const rows = ORCADO[ano] || [];
+  let html='';
+  rows.forEach((row, idx) => {
+    if (row.isGroup) {
+      html+=`<tr class="tr-group"><td colspan="14">${row.cod} — ${row.desc}</td></tr>`;
+    } else {
+      const vals=row.valores.map((v,i)=>`<td><input type="number" step="0.01" value="${v}" data-ano="${ano}" data-idx="${idx}" data-mi="${i}" onchange="orcFieldChange(this)"></td>`).join('');
+      html+=`<tr><td>${row.cod}</td><td><input type="text" value="${row.desc}" data-ano="${ano}" data-idx="${idx}" data-field="desc" style="text-align:left" onchange="orcFieldChange(this)"></td>${vals}</tr>`;
+    }
+  });
+  document.getElementById('bodyOrcEdit').innerHTML = html;
+}
+
+function orcFieldChange(el) {
+  const ano=el.dataset.ano, idx=parseInt(el.dataset.idx);
+  if (!ORCADO[ano]) return;
+  if (el.dataset.field==='desc') ORCADO[ano][idx].desc=el.value;
+  else ORCADO[ano][idx].valores[parseInt(el.dataset.mi)]=parseFloat(el.value)||0;
+}
+
+function saveOrcEdit() {
+  localStorage.setItem(LS_ORC, JSON.stringify(ORCADO));
+  render();
+  showMsg('msgOrcado','✓ Orçamento salvo.','ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════
+function addAnoToSelects(ano) {
+  ['selAno'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (![...sel.options].find(o => parseInt(o.value)===ano)) {
+      const o=document.createElement('option'); o.value=ano; o.textContent=ano; sel.appendChild(o);
+    }
+  });
+}
+
+function updateInfos() {
+  const anos = Object.keys(ORCADO).sort();
+  document.getElementById('infoOrcado').textContent = anos.length ? anos.join(', ') : 'Nenhum';
+  const keys = Object.keys(REALIZADO).filter(k=>REALIZADO[k].length).sort();
+  document.getElementById('infoRealizado').textContent = keys.length
+    ? keys.map(k=>{const[a,m]=k.split('-');return MESES[m-1]+'/'+a;}).join(', ')
+    : 'Nenhum';
+}
+
+function clearAll() {
+  if (!confirm('Limpar TODOS os dados (orçado + realizado)?')) return;
+  ORCADO={}; REALIZADO={};
+  localStorage.removeItem(LS_ORC); localStorage.removeItem(LS_REAL);
+  updateInfos(); renderOrcEdit(); render();
+}
+
+function showMsg(id, txt, type) {
+  const el=document.getElementById(id);
+  el.innerHTML=`<div class="msg ${type}">${txt}</div>`;
+  setTimeout(()=>el.innerHTML='',4000);
+}
+
+function exportCSV() {
+  const ano=parseInt(document.getElementById('selAno').value);
+  const meses=selectedMeses.length?selectedMeses:[1,2,3,4,5,6,7,8,9,10,11,12];
+  const mesAcum=getMesAcumRef();
+  const periodo=meses.length===12?'Acumulado':meses.map(m=>MESES[m-1]).join('-');
+  let csv=`Contas Pagas ${ano} — ${periodo}\n\nCódigo\tDescrição\tOrçado Período\tRealizado Período\tVar R$\t% Exec\tOrç Acumulado\tReal Acumulado\t% Acum\n`;
+  getGrupos(ano).forEach(g => {
+    csv+=`\t${g.desc}\t\t\t\t\t\t\t\n`;
+    getContasDoGrupo(ano,g.cod).forEach(c => {
+      const oP=getOrcadoPeriodo(c.cod,ano,meses),rP=getRealizadoPeriodo(c.cod,ano,meses);
+      const oA=getOrcadoAcumAte(c.cod,ano,mesAcum),rA=getRealizadoAcumAte(c.cod,ano,mesAcum);
+      csv+=`${c.cod}\t${c.desc}\t${oP.toFixed(2)}\t${rP.toFixed(2)}\t${(oP-rP).toFixed(2)}\t${oP?(rP/oP*100).toFixed(1)+'%':'—'}\t${oA.toFixed(2)}\t${rA.toFixed(2)}\t${oA?(rA/oA*100).toFixed(1)+'%':'—'}\n`;
+    });
+  });
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`ContasPagas_${ano}_${periodo}.csv`; a.click();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
