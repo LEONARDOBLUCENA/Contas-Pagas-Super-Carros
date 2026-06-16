@@ -884,28 +884,51 @@ function importRealizado() {
   if (!raw) { showMsg('msgRealizado','Cole os dados antes de processar.','err'); return; }
 
   const linhas = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
+  if (linhas.length < 2) { showMsg('msgRealizado','Dados insuficientes.','err'); return; }
+
+  // detecta cabeçalho na primeira linha
+  const cabecalho = linhas[0].split('\t').map(c => c.trim());
+
+  // mapeia nome da coluna -> índice (normaliza espaços e case)
+  const norm = s => s.toLowerCase().replace(/\s+/g,' ').trim();
+  const idx = {};
+  cabecalho.forEach((c,i) => { idx[norm(c)] = i; });
+
+  // índices das colunas que precisamos
+  const iCod   = idx['segmento'];
+  const iDesc  = idx['descr. segmento'];
+  const iVenc  = idx['dt.venc.'];
+  const iConta = idx['conta'];
+  const iFant  = idx['fantasia'];
+  const iRef   = idx['referência'] ?? idx['referencia'];
+  const iVal   = idx['vl.pagamento(título)'] ?? idx['vl.pagamento(titulo)'];
+  const iPgto  = idx['dt.pagto'] ?? idx['dt pagto'] ?? idx['dt.pagamento'];
+
+  if (iCod === undefined || iDesc === undefined || iVal === undefined || iPgto === undefined) {
+    showMsg('msgRealizado',`Cabeçalho não reconhecido. Colunas encontradas: ${cabecalho.slice(0,6).join(' | ')}...`,'err');
+    return;
+  }
+
   let ok=0, skip=0;
 
-  linhas.forEach(linha => {
+  linhas.slice(1).forEach(linha => {
     const cols = linha.split('\t');
-    if (cols.length < 7) { skip++; return; }
+    if (cols.length < 3) { skip++; return; }
 
-    const cod     = cols[0].trim();
-    const desc    = cols[1].trim();
-    const dtVenc  = cols[2].trim();
-    const conta   = cols[3].trim();
-    const fantasia= cols[4].trim();
-    const ref     = cols[5].trim();
-    const rawVal  = (cols[6]||'0').trim().replace(/[^\d,\.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');
+    const cod     = (cols[iCod]  || '').trim();
+    const desc    = (cols[iDesc] || '').trim();
+    const dtVenc  = iVenc  !== undefined ? (cols[iVenc] ||'').trim() : '';
+    const conta   = iConta !== undefined ? (cols[iConta]||'').trim() : '';
+    const fantasia= iFant  !== undefined ? (cols[iFant] ||'').trim() : '';
+    const ref     = iRef   !== undefined ? (cols[iRef]  ||'').trim() : '';
+    const rawVal  = (cols[iVal]||'0').trim().replace(/[^\d,\.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');
     const valor   = parseFloat(rawVal) || 0;
-    const dtPgto  = (cols[7]||'').trim();
+    const dtPgto  = (cols[iPgto]||'').trim();
 
-    // pula linhas de cabeçalho ou sem código numérico/alfanumérico válido
-    if (!cod || isNaN(parseInt(cod))) { skip++; return; }
+    if (!cod) { skip++; return; }
 
-    // extrai mês e ano de dtPgto ou dtVenc (aceita dd/mm/aaaa ou dd/mm/aa)
-    const dtRef = (dtPgto || dtVenc).trim();
-    const partes = dtRef.split('/');
+    // extrai mês e ano de dtPgto (dd/mm/aaaa)
+    const partes = dtPgto.split('/');
     let mes = 0, ano = 0;
     if (partes.length >= 3) {
       mes = parseInt(partes[1]);
@@ -918,13 +941,12 @@ function importRealizado() {
   });
 
   if (!ok) {
-    showMsg('msgRealizado',`Nenhuma linha válida (${skip} ignoradas). Verifique se os dados têm cabeçalho e se Dt Pgto está no formato dd/mm/aaaa.`,'err');
+    showMsg('msgRealizado',`Nenhuma linha válida (${skip} ignoradas). Verifique se Dt.pagto está no formato dd/mm/aaaa.`,'err');
     return;
   }
 
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
 
-  // adiciona anos novos ao select principal
   const anosNovos = [...new Set(REALIZADO.map(r=>r.ano))];
   anosNovos.forEach(a => {
     const sel = document.getElementById('selAno');
