@@ -900,33 +900,44 @@ function importRealizado() {
     const valor   = parseFloat(rawVal) || 0;
     const dtPgto  = (cols[7]||'').trim();
 
-    if (!cod) { skip++; return; }
+    // pula linhas de cabeçalho ou sem código numérico/alfanumérico válido
+    if (!cod || isNaN(parseInt(cod))) { skip++; return; }
 
-    // extrai mês e ano da Dt Pgto (dd/mm/aaaa) ou Dt Venc
-    const dtRef = dtPgto || dtVenc;
+    // extrai mês e ano de dtPgto ou dtVenc (aceita dd/mm/aaaa ou dd/mm/aa)
+    const dtRef = (dtPgto || dtVenc).trim();
     const partes = dtRef.split('/');
-    let mes = 0, ano = new Date().getFullYear();
+    let mes = 0, ano = 0;
     if (partes.length >= 3) {
       mes = parseInt(partes[1]);
       ano = parseInt(partes[2].length === 2 ? '20'+partes[2] : partes[2]);
-    } else if (partes.length === 2) {
-      mes = parseInt(partes[0]);
-      ano = parseInt(partes[1].length === 2 ? '20'+partes[1] : partes[1]);
     }
-    if (!mes || !ano) { skip++; return; }
+    if (!mes || mes < 1 || mes > 12 || !ano || ano < 2000) { skip++; return; }
 
     REALIZADO.push({cod, desc, valor, mes, ano, dtVenc, conta, fantasia, ref, dtPgto});
     ok++;
   });
 
-  if (!ok) { showMsg('msgRealizado','Nenhuma linha válida. Verifique o formato.','err'); return; }
+  if (!ok) {
+    showMsg('msgRealizado',`Nenhuma linha válida (${skip} ignoradas). Verifique se os dados têm cabeçalho e se Dt Pgto está no formato dd/mm/aaaa.`,'err');
+    return;
+  }
+
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
-  addAnoToSelects(0);
+
+  // adiciona anos novos ao select principal
+  const anosNovos = [...new Set(REALIZADO.map(r=>r.ano))];
+  anosNovos.forEach(a => {
+    const sel = document.getElementById('selAno');
+    if (sel && ![...sel.options].find(o => parseInt(o.value)===a)) {
+      const o=document.createElement('option'); o.value=a; o.textContent=a; sel.appendChild(o);
+    }
+  });
+
   updateInfos();
   populateFiltrosRealizado();
   render();
   renderRealizadoPreview();
-  showMsg('msgRealizado',`✓ ${ok} registros adicionados. Total: ${REALIZADO.length}.`,'ok');
+  showMsg('msgRealizado',`✓ ${ok} registros adicionados (${skip} ignorados). Total: ${REALIZADO.length}.`,'ok');
   document.getElementById('txtRealizado').value='';
 }
 
