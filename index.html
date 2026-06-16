@@ -269,37 +269,43 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 
 <!-- ══ REALIZADO ══ -->
 <div id="tab-realizado" class="tab-panel">
-  <div class="imp-box" style="max-width:520px;margin-bottom:20px">
+  <div class="imp-box" style="max-width:680px;margin-bottom:20px">
     <h3>💳 Importar Contas Pagas Realizado</h3>
-    <p>Selecione mês/ano e cole do Excel:<br>
-    <strong>Código | Descrição | Valor</strong></p>
-    <div class="row">
-      <div class="field">
-        <label>Mês</label>
-        <select id="impMes">
-          <option value="1">Janeiro</option><option value="2">Fevereiro</option>
-          <option value="3">Março</option><option value="4">Abril</option>
-          <option value="5">Maio</option><option value="6">Junho</option>
-          <option value="7">Julho</option><option value="8">Agosto</option>
-          <option value="9">Setembro</option><option value="10">Outubro</option>
-          <option value="11">Novembro</option><option value="12">Dezembro</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Ano</label>
-        <select id="impAno"></select>
-      </div>
-    </div>
-    <textarea id="txtRealizado" placeholder="Cole aqui o realizado do Excel (Tab-separado)..." style="min-height:160px"></textarea>
+    <p>Cole do Excel as colunas:<br>
+    <strong>Segmento | Descr. Segmento | Dt. Venc. | Conta | Fantasia | Referência | Vl.pagamento(título) | Dt Pgto</strong><br>
+    Novas importações são <strong>adicionadas</strong> aos dados existentes (não substituem).</p>
+    <textarea id="txtRealizado" placeholder="Cole aqui os dados do Excel (Tab-separado)..." style="min-height:160px"></textarea>
     <div class="btn-row">
-      <button class="btn btn-accent" onclick="importRealizado()">Importar</button>
-      <button class="btn btn-red" onclick="clearRealizadoMes()">Limpar Mês</button>
+      <button class="btn btn-accent" onclick="importRealizado()">Processar</button>
+      <button class="btn btn-red" onclick="clearTodoRealizado()">Limpar Tudo</button>
     </div>
     <div id="msgRealizado"></div>
-    <div class="info-line">Períodos com dados: <strong id="infoRealizado">—</strong></div>
+    <div class="info-line">Registros salvos: <strong id="infoRealizado">—</strong></div>
   </div>
 
-  <!-- TABELA CONSOLIDADA - colunas por mês -->
+  <!-- FILTROS -->
+  <div class="filters-bar" style="position:static;border-radius:var(--rl);margin-bottom:16px;border:1px solid var(--border)">
+    <span class="fb-label">Ano</span>
+    <select id="filtAnoReal" onchange="renderRealizadoPreview()"></select>
+    <span class="fb-sep">|</span>
+    <span class="fb-label">Mês</span>
+    <select id="filtMesReal" onchange="renderRealizadoPreview()">
+      <option value="0">Todos</option>
+      <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+      <option value="3">Março</option><option value="4">Abril</option>
+      <option value="5">Maio</option><option value="6">Junho</option>
+      <option value="7">Julho</option><option value="8">Agosto</option>
+      <option value="9">Setembro</option><option value="10">Outubro</option>
+      <option value="11">Novembro</option><option value="12">Dezembro</option>
+    </select>
+    <span class="fb-sep">|</span>
+    <span class="fb-label">Segmento</span>
+    <select id="filtSegReal" onchange="renderRealizadoPreview()">
+      <option value="">Todos</option>
+    </select>
+  </div>
+
+  <!-- TABELA -->
   <div class="tcard" id="cardRealizadoPreview">
     <div class="tcard-hdr">
       <h3 id="tituloRealizado">Realizado</h3>
@@ -358,7 +364,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 // STATE
 // ═══════════════════════════════════════════════════════════════════════
 const LS_ORC  = 'cp_sc_orc_v2';
-const LS_REAL = 'cp_sc_real_v2';
+const LS_REAL = 'cp_sc_real_v3';  // array de registros: [{cod,desc,valor,mes,ano,dtVenc,conta,fantasia,ref,dtPgto}]
 
 const MESES      = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -387,7 +393,7 @@ function getGrupoId(cod) {
 }
 
 let ORCADO    = {};
-let REALIZADO = {};
+let REALIZADO = [];  // array de registros individuais
 let selectedMeses  = [1,2,3,4,5,6,7,8,9,10,11,12];
 let selectedGrupos = null; // null = todos; será inicializado no buildMsdGrupo
 let chartMensal = null;
@@ -400,6 +406,7 @@ function init() {
   if (orc) ORCADO = JSON.parse(orc);
   const rel = localStorage.getItem(LS_REAL);
   if (rel) REALIZADO = JSON.parse(rel);
+  if (!Array.isArray(REALIZADO)) REALIZADO = []; // compatibilidade com formato antigo
 
   const now = new Date();
   const anoAtual = now.getFullYear();
@@ -414,8 +421,8 @@ function init() {
   });
   if (!selAno.value) { const o = document.createElement('option'); o.value = anoAtual; o.textContent = anoAtual; selAno.appendChild(o); selAno.value = anoAtual; }
 
-  // selects de ano nos campos de importação
-  ['impAno','anoOrcInput','selAnoEdit'].forEach(id => {
+  // selects de ano nos campos de importação do orçado
+  ['anoOrcInput','selAnoEdit'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     for (let y = anoAtual - 2; y <= anoAtual + 2; y++) {
@@ -424,15 +431,14 @@ function init() {
       el.appendChild(o);
     }
   });
-  document.getElementById('impMes').value = now.getMonth() + 1;
 
-  // MSD meses — começa todos selecionados
   buildMsd();
   buildMsdGrupo();
   selectedMeses = [now.getMonth() + 1];
   updateMsdUI();
 
   updateInfos();
+  populateFiltrosRealizado();
   render();
   renderRealizadoPreview();
   // gráfico precisa de delay para o layout estar pronto
@@ -452,7 +458,7 @@ function init() {
 function getAnos() {
   const set = new Set([new Date().getFullYear()]);
   Object.keys(ORCADO).forEach(a => set.add(parseInt(a)));
-  Object.keys(REALIZADO).forEach(k => set.add(parseInt(k.split('-')[0])));
+  REALIZADO.forEach(r => set.add(r.ano));
   return [...set].sort();
 }
 
@@ -604,19 +610,15 @@ function getOrcadoAcumAte(cod, ano, mesMax) {
 }
 
 function getRealizadoPeriodo(cod, ano, meses) {
-  return meses.reduce((s, m) => {
-    const key = `${ano}-${m}`;
-    return s + (REALIZADO[key] || []).filter(r => r.cod === cod).reduce((a, r) => a + r.valor, 0);
-  }, 0);
+  return REALIZADO
+    .filter(r => r.cod === cod && r.ano === ano && meses.includes(r.mes))
+    .reduce((s, r) => s + r.valor, 0);
 }
 
 function getRealizadoAcumAte(cod, ano, mesMax) {
-  let s = 0;
-  for (let m = 1; m <= mesMax; m++) {
-    const key = `${ano}-${m}`;
-    s += (REALIZADO[key] || []).filter(r => r.cod === cod).reduce((a, r) => a + r.valor, 0);
-  }
-  return s;
+  return REALIZADO
+    .filter(r => r.cod === cod && r.ano === ano && r.mes <= mesMax)
+    .reduce((s, r) => s + r.valor, 0);
 }
 
 function getContas(ano, filtrarGrupo=true) {
@@ -873,94 +875,140 @@ function clearOrcadoAno() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// IMPORT REALIZADO
+// IMPORT REALIZADO — nova estrutura
 // ═══════════════════════════════════════════════════════════════════════
+// Colunas esperadas (índice 0-based):
+// 0:Segmento  1:Descr.Segmento  2:Dt.Venc  3:Conta  4:Fantasia  5:Referência  6:Vl.pagamento  7:Dt Pgto
 function importRealizado() {
   const raw = document.getElementById('txtRealizado').value.trim();
-  const mes = parseInt(document.getElementById('impMes').value);
-  const ano = document.getElementById('impAno').value;
-  if (!raw) { showMsg('msgRealizado','Cole os dados antes de importar.','err'); return; }
+  if (!raw) { showMsg('msgRealizado','Cole os dados antes de processar.','err'); return; }
 
-  // normaliza quebras de linha e divide
   const linhas = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
-  const parsed = []; let ok=0, skip=0;
+  let ok=0, skip=0;
 
   linhas.forEach(linha => {
-    // tenta tab primeiro, depois ponto-e-vírgula, depois vírgula
-    const cols = linha.includes('\t') ? linha.split('\t') : linha.includes(';') ? linha.split(';') : linha.split(',');
-    if (cols.length < 2) { skip++; return; }
+    const cols = linha.split('\t');
+    if (cols.length < 7) { skip++; return; }
 
-    const cod  = cols[0].trim();
-    const desc = cols[1].trim();
+    const cod     = cols[0].trim();
+    const desc    = cols[1].trim();
+    const dtVenc  = cols[2].trim();
+    const conta   = cols[3].trim();
+    const fantasia= cols[4].trim();
+    const ref     = cols[5].trim();
+    const rawVal  = (cols[6]||'0').trim().replace(/[^\d,\.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');
+    const valor   = parseFloat(rawVal) || 0;
+    const dtPgto  = (cols[7]||'').trim();
+
     if (!cod) { skip++; return; }
 
-    // valor pode estar na col 2 ou não existir
-    const rawVal = (cols[2] || '0').trim()
-      .replace(/[^\d,\.\-]/g, '')   // remove R$, espaços etc
-      .replace(/\.(?=\d{3})/g, '')  // remove ponto de milhar (1.234 → 1234)
-      .replace(',', '.');            // troca vírgula decimal por ponto
+    // extrai mês e ano da Dt Pgto (dd/mm/aaaa) ou Dt Venc
+    const dtRef = dtPgto || dtVenc;
+    const partes = dtRef.split('/');
+    let mes = 0, ano = new Date().getFullYear();
+    if (partes.length >= 3) {
+      mes = parseInt(partes[1]);
+      ano = parseInt(partes[2].length === 2 ? '20'+partes[2] : partes[2]);
+    } else if (partes.length === 2) {
+      mes = parseInt(partes[0]);
+      ano = parseInt(partes[1].length === 2 ? '20'+partes[1] : partes[1]);
+    }
+    if (!mes || !ano) { skip++; return; }
 
-    const valor = parseFloat(rawVal) || 0;
-    parsed.push({cod, desc, valor});
+    REALIZADO.push({cod, desc, valor, mes, ano, dtVenc, conta, fantasia, ref, dtPgto});
     ok++;
   });
 
-  if (!ok) { showMsg('msgRealizado','Nenhuma linha válida encontrada.','err'); return; }
-  const key = `${ano}-${mes}`;
-  REALIZADO[key] = parsed;
+  if (!ok) { showMsg('msgRealizado','Nenhuma linha válida. Verifique o formato.','err'); return; }
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
-  addAnoToSelects(parseInt(ano));
-  updateInfos(); render();
+  addAnoToSelects(0);
+  updateInfos();
+  populateFiltrosRealizado();
+  render();
   renderRealizadoPreview();
-  // garante que o card aparece mesmo sem trocar de aba
-  const card = document.getElementById('cardRealizadoPreview');
-  if (card) { card.style.display='block'; card.scrollIntoView({behavior:'smooth', block:'nearest'}); }
-  showMsg('msgRealizado',`✓ ${ok} lançamentos importados para ${MESES_FULL[mes-1]}/${ano}.`,'ok');
+  showMsg('msgRealizado',`✓ ${ok} registros adicionados. Total: ${REALIZADO.length}.`,'ok');
   document.getElementById('txtRealizado').value='';
 }
 
-function clearRealizadoMes() {
-  const mes=parseInt(document.getElementById('impMes').value);
-  const ano=document.getElementById('impAno').value;
-  const key=`${ano}-${mes}`;
-  if (!REALIZADO[key]) { showMsg('msgRealizado','Nenhum dado para este período.','err'); return; }
-  if (!confirm(`Limpar realizado de ${MESES_FULL[mes-1]}/${ano}?`)) return;
-  delete REALIZADO[key];
+function clearTodoRealizado() {
+  if (!confirm('Limpar TODOS os dados do realizado?')) return;
+  REALIZADO = [];
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
-  updateInfos(); render(); renderRealizadoPreview();
-  showMsg('msgRealizado',`Dados de ${MESES_FULL[mes-1]}/${ano} removidos.`,'ok');
+  updateInfos();
+  populateFiltrosRealizado();
+  render();
+  renderRealizadoPreview();
+  showMsg('msgRealizado','Realizado limpo.','ok');
+}
+
+function populateFiltrosRealizado() {
+  // anos
+  const anos = [...new Set(REALIZADO.map(r=>r.ano))].sort();
+  const selAno = document.getElementById('filtAnoReal');
+  if (!selAno) return;
+  const curAno = selAno.value;
+  selAno.innerHTML = '<option value="0">Todos</option>';
+  anos.forEach(a => { const o=document.createElement('option'); o.value=a; o.textContent=a; selAno.appendChild(o); });
+  if (curAno && anos.includes(parseInt(curAno))) selAno.value=curAno;
+
+  // segmentos
+  const segs = [...new Set(REALIZADO.map(r=>r.cod))].sort();
+  const selSeg = document.getElementById('filtSegReal');
+  if (!selSeg) return;
+  const curSeg = selSeg.value;
+  selSeg.innerHTML = '<option value="">Todos</option>';
+  segs.forEach(s => {
+    const desc = REALIZADO.find(r=>r.cod===s)?.desc || s;
+    const o=document.createElement('option'); o.value=s; o.textContent=`${s} — ${desc}`; selSeg.appendChild(o);
+  });
+  if (curSeg) selSeg.value=curSeg;
 }
 
 function renderRealizadoPreview() {
   const scroll = document.getElementById('scrollRealizado');
+  if (!scroll) return;
 
-  const keys = Object.keys(REALIZADO)
-    .filter(k => REALIZADO[k] && REALIZADO[k].length)
-    .sort((a,b) => {
-      const [aa,am] = a.split('-').map(Number);
-      const [ba,bm] = b.split('-').map(Number);
-      return aa !== ba ? aa - ba : am - bm;
-    });
-
-  if (!keys.length) {
-    scroll.innerHTML = `<div class="empty"><div class="ic">📂</div><p>Nenhum dado importado ainda.<br>Cole os dados acima e clique em <strong>Importar</strong>.</p></div>`;
+  if (!REALIZADO.length) {
+    scroll.innerHTML = `<div class="empty"><div class="ic">📂</div><p>Nenhum dado importado ainda.<br>Cole os dados acima e clique em <strong>Processar</strong>.</p></div>`;
     document.getElementById('tituloRealizado').textContent = 'Realizado';
     return;
   }
 
-  // union cod -> desc de todos os meses
+  // lê filtros
+  const filtAno = parseInt(document.getElementById('filtAnoReal')?.value || '0');
+  const filtMes = parseInt(document.getElementById('filtMesReal')?.value || '0');
+  const filtSeg = document.getElementById('filtSegReal')?.value || '';
+
+  let dados = REALIZADO;
+  if (filtAno) dados = dados.filter(r => r.ano === filtAno);
+  if (filtMes) dados = dados.filter(r => r.mes === filtMes);
+  if (filtSeg) dados = dados.filter(r => r.cod === filtSeg);
+
+  // meses presentes (para colunas)
+  const anosFiltro = [...new Set(dados.map(r=>r.ano))].sort();
+  const mesesCols = [];
+  anosFiltro.forEach(a => {
+    const ms = [...new Set(dados.filter(r=>r.ano===a).map(r=>r.mes))].sort((x,y)=>x-y);
+    ms.forEach(m => mesesCols.push({ano:a, mes:m, key:`${a}-${m}`}));
+  });
+
+  // cod->desc union
   const codMap = new Map();
-  keys.forEach(k => REALIZADO[k].forEach(r => { if (!codMap.has(r.cod)) codMap.set(r.cod, r.desc); }));
+  dados.forEach(r => { if (!codMap.has(r.cod)) codMap.set(r.cod, r.desc); });
 
   // cod+key -> valor
   const valMap = {};
-  keys.forEach(k => REALIZADO[k].forEach(r => { valMap[`${r.cod}|${k}`] = r.valor; }));
+  dados.forEach(r => {
+    const k = `${r.ano}-${r.mes}`;
+    const mk = `${r.cod}|${k}`;
+    valMap[mk] = (valMap[mk]||0) + r.valor;
+  });
 
-  const thMeses = keys.map(k => { const [a,m]=k.split('-'); return `<th>${MESES[m-1]}/${a}</th>`; }).join('');
+  const thMeses = mesesCols.map(c=>`<th>${MESES[c.mes-1]}/${c.ano}</th>`).join('');
 
   // agrupa por grupo
   const porGrupo = new Map();
-  codMap.forEach((desc, cod) => {
+  codMap.forEach((desc,cod) => {
     const gid = getGrupoId(cod);
     if (!porGrupo.has(gid)) porGrupo.set(gid, []);
     porGrupo.get(gid).push(cod);
@@ -969,39 +1017,42 @@ function renderRealizadoPreview() {
   let bodyHtml = '';
   porGrupo.forEach((cods, gid) => {
     const gnome = GRUPOS_DEF.find(g=>g.id===gid)?.nome || 'Outros';
-    // calcula subtotal por mês para o grupo
-    const subCels = keys.map(k => {
-      const tot = cods.reduce((s,cod) => s + (valMap[`${cod}|${k}`] || 0), 0);
-      return `<td style="font-weight:700">${tot !== 0 ? fmtR(tot,false) : '—'}</td>`;
+    const subCels = mesesCols.map(c => {
+      const tot = cods.reduce((s,cod)=>s+(valMap[`${cod}|${c.key}`]||0),0);
+      return `<td style="font-weight:700">${tot!==0?fmtR(tot,false):'—'}</td>`;
     }).join('');
     bodyHtml += `<tr class="tr-group"><td colspan="2">▸ ${gnome}</td>${subCels}</tr>`;
     cods.forEach(cod => {
-      const cels = keys.map(k => {
-        const v = valMap[`${cod}|${k}`];
-        return v !== undefined ? `<td>${fmtR(v,false)}</td>` : `<td style="color:var(--text3)">—</td>`;
+      const cels = mesesCols.map(c => {
+        const v = valMap[`${cod}|${c.key}`];
+        return v!==undefined ? `<td>${fmtR(v,false)}</td>` : `<td style="color:var(--text3)">—</td>`;
       }).join('');
       bodyHtml += `<tr><td>${cod}</td><td>${codMap.get(cod)}</td>${cels}</tr>`;
     });
   });
 
-  const totCels = keys.map(k => `<td>${fmtR((REALIZADO[k]||[]).reduce((s,r)=>s+r.valor,0),false)}</td>`).join('');
+  const totCels = mesesCols.map(c => {
+    const tot = dados.filter(r=>r.ano===c.ano&&r.mes===c.mes).reduce((s,r)=>s+r.valor,0);
+    return `<td>${fmtR(tot,false)}</td>`;
+  }).join('');
   bodyHtml += `<tr class="tr-total"><td colspan="2">TOTAL GERAL</td>${totCels}</tr>`;
 
   scroll.innerHTML = `<table>
     <thead><tr>
-      <th style="text-align:left">Código</th>
+      <th style="text-align:left">Segmento</th>
       <th style="text-align:left">Descrição</th>
       ${thMeses}
     </tr></thead>
     <tbody>${bodyHtml}</tbody>
   </table>`;
 
-  document.getElementById('tituloRealizado').textContent = `Realizado — ${keys.length} período(s)`;
+  const nPeriodos = mesesCols.length;
+  document.getElementById('tituloRealizado').textContent = `Realizado — ${nPeriodos} período(s) · ${dados.length} registros`;
 }
 
-function realFieldChange(el) {}   // mantido por compatibilidade
-function saveRealizadoEdit() {}   // mantido por compatibilidade
-
+function realFieldChange(el) {}
+function saveRealizadoEdit() {}
+function clearRealizadoMes() {}
 // ═══════════════════════════════════════════════════════════════════════
 // EDIT INLINE ORÇADO
 // ═══════════════════════════════════════════════════════════════════════
@@ -1089,17 +1140,15 @@ function addAnoToSelects(ano) {
 function updateInfos() {
   const anos = Object.keys(ORCADO).sort();
   document.getElementById('infoOrcado').textContent = anos.length ? anos.join(', ') : 'Nenhum';
-  const keys = Object.keys(REALIZADO).filter(k=>REALIZADO[k].length).sort();
-  document.getElementById('infoRealizado').textContent = keys.length
-    ? keys.map(k=>{const[a,m]=k.split('-');return MESES[m-1]+'/'+a;}).join(', ')
-    : 'Nenhum';
+  const el = document.getElementById('infoRealizado');
+  if (el) el.textContent = REALIZADO.length ? `${REALIZADO.length} registros` : 'Nenhum';
 }
 
 function clearAll() {
   if (!confirm('Limpar TODOS os dados (orçado + realizado)?')) return;
-  ORCADO={}; REALIZADO={};
+  ORCADO={}; REALIZADO=[];
   localStorage.removeItem(LS_ORC); localStorage.removeItem(LS_REAL);
-  updateInfos(); renderOrcEdit(); render();
+  updateInfos(); renderOrcEdit(); populateFiltrosRealizado(); render(); renderRealizadoPreview();
 }
 
 function showMsg(id, txt, type) {
