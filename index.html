@@ -883,68 +883,91 @@ function importRealizado() {
   const raw = document.getElementById('txtRealizado').value.trim();
   if (!raw) { showMsg('msgRealizado','Cole os dados antes de processar.','err'); return; }
 
-  const linhas = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
-  if (linhas.length < 2) { showMsg('msgRealizado','Dados insuficientes.','err'); return; }
-
-  // normaliza string: minúsculo, sem acento, sem parênteses, espaços simples
+  // normaliza string para busca de coluna
   const norm = s => s.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')  // remove acentos
-    .replace(/[()]/g,'')                               // remove parênteses
-    .replace(/\s+/g,' ').trim();
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[()\.]/g,'').replace(/\s+/g,' ').trim();
 
-  const cabecalho = linhas[0].split('\t').map(c => c.trim());
-  const idx = {};
-  cabecalho.forEach((c,i) => { idx[norm(c)] = i; });
+  // split por tab preservando quebras de linha internas
+  // O Excel cola células com quebra de linha como \n dentro de aspas,
+  // mas ao colar no textarea sem aspas, vira \n solto entre tabs.
+  // Estratégia: juntar todos os tokens por tab e reconstruir linhas
+  // com base no número de colunas do cabeçalho.
 
-  // busca flexível por nome de coluna
+  // 1. pega todos os tokens separados por \t (ignorando \n por ora)
+  const rawNorm = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+
+  // 2. divide em tokens por tab, mantendo \n como marcador especial
+  //    substitui \n por um marcador único para detectar quebras reais vs internas
+  // Heurística: se uma linha tem poucos tokens, provavelmente é continuação da anterior
+  const linhasRaw = rawNorm.split('\n');
+
+  // descobre quantas colunas tem o cabeçalho juntando linhas até ter tabs suficientes
+  let cabecalhoStr = '';
+  let linhaStart = 0;
+  for (let i = 0; i < Math.min(10, linhasRaw.length); i++) {
+    cabecalhoStr += (cabecalhoStr ? '\t' : '') + linhasRaw[i];
+    if (cabecalhoStr.split('\t').length >= 20) { linhaStart = i + 1; break; }
+    if (i === 0 && linhasRaw[0].split('\t').length >= 20) { linhaStart = 1; break; }
+  }
+
+  const cabecalho = cabecalhoStr.split('\t').map(c => c.trim());
+  const nCols = cabecalho.length;
+
+  // mapeia colunas por nome normalizado
+  const idxMap = {};
+  cabecalho.forEach((c,i) => { idxMap[norm(c)] = i; });
+
   const find = (...nomes) => {
     for (const n of nomes) {
-      const v = idx[norm(n)];
+      const v = idxMap[norm(n)];
       if (v !== undefined) return v;
     }
     return undefined;
   };
 
   const iCod   = find('Segmento');
-  const iDesc  = find('Descr. Segmento','Descr Segmento');
+  const iDesc  = find('Descr. Segmento','Descr Segmento','Descr segmento');
   const iVenc  = find('Dt.venc.','Dt venc','Dt. Venc');
   const iConta = find('Conta');
   const iFant  = find('Fantasia');
-  const iRef   = find('Referência','Referencia','Ref');
-  const iVal   = find('Vl.pagamento(título)','Vl.pagamento(titulo)','Vl pagamento titulo','Vl.pagamento');
-  const iPgto  = find('Dt.pagto','Dt pagto','Dt.pagamento','Dt Pgto');
+  const iRef   = find('Referência','Referencia');
+  const iVal   = find('Vl.pagamento(título)','Vl pagamento titulo','Vl.pagamento titulo');
+  const iPgto  = find('Dt.pagto','Dt pagto','Dt pagamento');
 
-  // diagnóstico se alguma coluna crítica não for encontrada
-  if (iCod === undefined || iDesc === undefined || iVal === undefined || iPgto === undefined) {
-    const encontradas = cabecalho.map((c,i)=>`${i}:${c}`).join(' | ');
+  if (iCod===undefined || iDesc===undefined || iVal===undefined || iPgto===undefined) {
     showMsg('msgRealizado',
-      `Colunas não encontradas — Segmento:${iCod} Descr:${iDesc} Valor:${iVal} DtPgto:${iPgto}<br>
-      Cabeçalho lido: ${encontradas.slice(0,200)}`, 'err');
+      `Colunas não encontradas — Seg:${iCod} Desc:${iDesc} Valor:${iVal} DtPgto:${iPgto}<br>
+      Cabeçalho (${nCols} cols): ${cabecalho.slice(0,8).join(' | ')}...`,'err');
     return;
+  }
+
+  // reconstrói linhas de dados: junta tokens até ter nCols colunas por linha
+  const tokens = linhasRaw.slice(linhaStart).join('\t').split('\t');
+  const linhasDados = [];
+  for (let i = 0; i < tokens.length; i += nCols) {
+    const slice = tokens.slice(i, i + nCols);
+    if (slice.length === nCols) linhasDados.push(slice);
   }
 
   let ok=0, skip=0;
 
-  linhas.slice(1).forEach(linha => {
-    const cols = linha.split('\t');
-    if (cols.length < 3) { skip++; return; }
-
-    const cod     = (cols[iCod]  || '').trim();
-    const desc    = (cols[iDesc] || '').trim();
-    const dtVenc  = iVenc  !== undefined ? (cols[iVenc] ||'').trim() : '';
-    const conta   = iConta !== undefined ? (cols[iConta]||'').trim() : '';
-    const fantasia= iFant  !== undefined ? (cols[iFant] ||'').trim() : '';
-    const ref     = iRef   !== undefined ? (cols[iRef]  ||'').trim() : '';
-    const rawVal  = (cols[iVal]||'0').trim()
+  linhasDados.forEach(cols => {
+    const cod      = (cols[iCod]   || '').trim();
+    const desc     = (cols[iDesc]  || '').trim();
+    const dtVenc   = iVenc  !== undefined ? (cols[iVenc]  || '').trim() : '';
+    const conta    = iConta !== undefined ? (cols[iConta] || '').trim() : '';
+    const fantasia = iFant  !== undefined ? (cols[iFant]  || '').trim() : '';
+    const ref      = iRef   !== undefined ? (cols[iRef]   || '').trim() : '';
+    const rawVal   = (cols[iVal]||'0').trim()
       .replace(/[^\d,\.\-]/g,'')
-      .replace(/\.(?=\d{3}(,|$))/g,'')  // ponto de milhar
+      .replace(/\.(?=\d{3}(,|$))/g,'')
       .replace(',','.');
-    const valor   = parseFloat(rawVal) || 0;
-    const dtPgto  = (cols[iPgto]||'').trim();
+    const valor    = parseFloat(rawVal) || 0;
+    const dtPgto   = (cols[iPgto] || '').trim();
 
     if (!cod) { skip++; return; }
 
-    // extrai mês e ano — aceita dd/mm/aaaa ou d/m/aaaa
     const partes = dtPgto.split('/');
     let mes = 0, ano = 0;
     if (partes.length >= 3) {
@@ -958,12 +981,11 @@ function importRealizado() {
   });
 
   if (!ok) {
-    showMsg('msgRealizado',`Nenhuma linha válida (${skip} ignoradas). Verifique se Dt.pagto está preenchida no formato dd/mm/aaaa.`,'err');
+    showMsg('msgRealizado',`Nenhuma linha válida (${skip} ignoradas). Total tokens: ${tokens.length}, colunas: ${nCols}.`,'err');
     return;
   }
 
   localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
-
   const anosNovos = [...new Set(REALIZADO.map(r=>r.ano))];
   anosNovos.forEach(a => {
     const sel = document.getElementById('selAno');
@@ -971,7 +993,6 @@ function importRealizado() {
       const o=document.createElement('option'); o.value=a; o.textContent=a; sel.appendChild(o);
     }
   });
-
   updateInfos();
   populateFiltrosRealizado();
   render();
