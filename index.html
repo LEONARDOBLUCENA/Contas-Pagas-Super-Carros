@@ -364,7 +364,66 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 // STATE
 // ═══════════════════════════════════════════════════════════════════════
 const LS_ORC  = 'cp_sc_orc_v2';
-const LS_REAL = 'cp_sc_real_v3';  // array de registros: [{cod,desc,valor,mes,ano,dtVenc,conta,fantasia,ref,dtPgto}]
+const LS_REAL = 'cp_sc_real_v4_gz';  // comprimido com gzip+base64
+
+// ── COMPRESSÃO ──────────────────────────────────────────────────────────
+async function compress(obj) {
+  const json = JSON.stringify(obj);
+  const stream = new CompressionStream('gzip');
+  const writer = stream.writable.getWriter();
+  writer.write(new TextEncoder().encode(json));
+  writer.close();
+  const chunks = [];
+  const reader = stream.readable.getReader();
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((s,c)=>s+c.length,0);
+  const merged = new Uint8Array(total);
+  let off=0; chunks.forEach(c=>{merged.set(c,off);off+=c.length;});
+  return btoa(String.fromCharCode(...merged));
+}
+
+async function decompress(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  const stream = new DecompressionStream('gzip');
+  const writer = stream.writable.getWriter();
+  writer.write(bytes); writer.close();
+  const chunks = [];
+  const reader = stream.readable.getReader();
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  return JSON.parse(new TextDecoder().decode(
+    chunks.reduce((a,b)=>{const m=new Uint8Array(a.length+b.length);m.set(a);m.set(b,a.length);return m;}, new Uint8Array(0))
+  ));
+}
+
+async function saveReal() {
+  try {
+    const gz = await compress(REALIZADO);
+    localStorage.setItem(LS_REAL, gz);
+  } catch(e) {
+    console.error('Erro ao salvar realizado:', e);
+    alert('Erro ao salvar: ' + e.message);
+  }
+}
+
+async function loadReal() {
+  // tenta chave nova (comprimida)
+  const gz = localStorage.getItem(LS_REAL);
+  if (gz) { try { return await decompress(gz); } catch(e) { console.warn('decompress falhou', e); } }
+  // fallback: chave antiga não comprimida
+  const old = localStorage.getItem('cp_sc_real_v3');
+  if (old) { try { return JSON.parse(old); } catch(e) {} }
+  return [];
+}
 
 const MESES      = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -401,12 +460,11 @@ let chartMensal = null;
 // ═══════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════
-function init() {
+async function init() {
   const orc = localStorage.getItem(LS_ORC);
   if (orc) ORCADO = JSON.parse(orc);
-  const rel = localStorage.getItem(LS_REAL);
-  if (rel) REALIZADO = JSON.parse(rel);
-  if (!Array.isArray(REALIZADO)) REALIZADO = []; // compatibilidade com formato antigo
+  REALIZADO = await loadReal();
+  if (!Array.isArray(REALIZADO)) REALIZADO = [];
 
   const now = new Date();
   const anoAtual = now.getFullYear();
@@ -877,7 +935,7 @@ function clearOrcadoAno() {
 // ═══════════════════════════════════════════════════════════════════════
 // IMPORT REALIZADO — nova estrutura
 // ═══════════════════════════════════════════════════════════════════════
-function importRealizado() {
+async function importRealizado() {
   const raw = document.getElementById('txtRealizado').value.trim();
   if (!raw) { showMsg('msgRealizado','Cole os dados antes de processar.','err'); return; }
 
@@ -960,7 +1018,7 @@ function importRealizado() {
     return;
   }
 
-  localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
+  await saveReal();
   const anosNovos = [...new Set(REALIZADO.map(r=>r.ano))];
   anosNovos.forEach(a => {
     const sel = document.getElementById('selAno');
@@ -976,10 +1034,10 @@ function importRealizado() {
   document.getElementById('txtRealizado').value='';
 }
 
-function clearTodoRealizado() {
+async function clearTodoRealizado() {
   if (!confirm('Limpar TODOS os dados do realizado?')) return;
   REALIZADO = [];
-  localStorage.setItem(LS_REAL, JSON.stringify(REALIZADO));
+  await saveReal();
   updateInfos();
   populateFiltrosRealizado();
   render();
@@ -1193,7 +1251,7 @@ function updateInfos() {
 function clearAll() {
   if (!confirm('Limpar TODOS os dados (orçado + realizado)?')) return;
   ORCADO={}; REALIZADO=[];
-  localStorage.removeItem(LS_ORC); localStorage.removeItem(LS_REAL);
+  localStorage.removeItem(LS_ORC); localStorage.removeItem(LS_REAL); localStorage.removeItem('cp_sc_real_v3');
   updateInfos(); renderOrcEdit(); populateFiltrosRealizado(); render(); renderRealizadoPreview();
 }
 
@@ -1227,7 +1285,7 @@ function backupJSON() {
   a.download = `backup_contaspagas_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
-init();
+init().catch(e=>console.error('init error',e));
 </script>
 </body>
 </html>
