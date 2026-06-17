@@ -364,65 +364,46 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 // STATE
 // ═══════════════════════════════════════════════════════════════════════
 const LS_ORC  = 'cp_sc_orc_v2';
-const LS_REAL = 'cp_sc_real_v4_gz';  // comprimido com gzip+base64
+// chave por ano: cp_sc_real_YYYY
+function lsKeyAno(ano) { return 'cp_sc_real_' + ano; }
 
-// ── COMPRESSÃO ──────────────────────────────────────────────────────────
-async function compress(obj) {
-  const json = JSON.stringify(obj);
-  const stream = new CompressionStream('gzip');
-  const writer = stream.writable.getWriter();
-  writer.write(new TextEncoder().encode(json));
-  writer.close();
-  const chunks = [];
-  const reader = stream.readable.getReader();
-  while (true) {
-    const {done, value} = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-  const total = chunks.reduce((s,c)=>s+c.length,0);
-  const merged = new Uint8Array(total);
-  let off=0; chunks.forEach(c=>{merged.set(c,off);off+=c.length;});
-  return btoa(String.fromCharCode(...merged));
-}
-
-async function decompress(b64) {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-  const stream = new DecompressionStream('gzip');
-  const writer = stream.writable.getWriter();
-  writer.write(bytes); writer.close();
-  const chunks = [];
-  const reader = stream.readable.getReader();
-  while (true) {
-    const {done, value} = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-  return JSON.parse(new TextDecoder().decode(
-    chunks.reduce((a,b)=>{const m=new Uint8Array(a.length+b.length);m.set(a);m.set(b,a.length);return m;}, new Uint8Array(0))
-  ));
-}
-
-async function saveReal() {
+function saveReal() {
+  // agrupa por ano e salva cada um em chave separada
+  const porAno = {};
+  REALIZADO.forEach(r => {
+    if (!porAno[r.ano]) porAno[r.ano] = [];
+    porAno[r.ano].push(r);
+  });
   try {
-    const gz = await compress(REALIZADO);
-    localStorage.setItem(LS_REAL, gz);
+    // limpa chaves antigas de anos que ainda existem em memória
+    const anosEmMemoria = Object.keys(porAno);
+    anosEmMemoria.forEach(ano => {
+      localStorage.setItem(lsKeyAno(ano), JSON.stringify(porAno[ano]));
+    });
   } catch(e) {
     console.error('Erro ao salvar realizado:', e);
-    alert('Erro ao salvar: ' + e.message);
+    const msgEl = document.getElementById('msgRealizado');
+    if (msgEl) msgEl.innerHTML = `<div class="msg err">Erro ao salvar: ${e.message}</div>`;
   }
 }
 
-async function loadReal() {
-  // tenta chave nova (comprimida)
-  const gz = localStorage.getItem(LS_REAL);
-  if (gz) { try { return await decompress(gz); } catch(e) { console.warn('decompress falhou', e); } }
-  // fallback: chave antiga não comprimida
-  const old = localStorage.getItem('cp_sc_real_v3');
-  if (old) { try { return JSON.parse(old); } catch(e) {} }
-  return [];
+function loadReal() {
+  const registros = [];
+  // varre todas as chaves do localStorage procurando cp_sc_real_YYYY
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (/^cp_sc_real_\d{4}$/.test(key)) {
+      try { registros.push(...JSON.parse(localStorage.getItem(key))); } catch(e) {}
+    }
+  }
+  // fallback: chave antiga monolítica
+  if (!registros.length) {
+    ['cp_sc_real_v3','cp_sc_real_v4_gz'].forEach(k => {
+      const v = localStorage.getItem(k);
+      if (v) { try { registros.push(...JSON.parse(v)); } catch(e) {} }
+    });
+  }
+  return registros;
 }
 
 const MESES      = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -460,10 +441,10 @@ let chartMensal = null;
 // ═══════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════
-async function init() {
+function init() {
   const orc = localStorage.getItem(LS_ORC);
   if (orc) ORCADO = JSON.parse(orc);
-  REALIZADO = await loadReal();
+  REALIZADO = loadReal();
   if (!Array.isArray(REALIZADO)) REALIZADO = [];
 
   const now = new Date();
@@ -935,7 +916,7 @@ function clearOrcadoAno() {
 // ═══════════════════════════════════════════════════════════════════════
 // IMPORT REALIZADO — nova estrutura
 // ═══════════════════════════════════════════════════════════════════════
-async function importRealizado() {
+function importRealizado() {
   const raw = document.getElementById('txtRealizado').value.trim();
   if (!raw) { showMsg('msgRealizado','Cole os dados antes de processar.','err'); return; }
 
@@ -1007,7 +988,7 @@ async function importRealizado() {
     const valor = Math.abs(parseFloat(rawVal) || 0);
     if (valor === 0) { semValor++; continue; }
 
-    REALIZADO.push({cod, desc, valor, mes, ano, dtVenc, conta, fantasia, ref, dtPgto});
+    REALIZADO.push({cod, desc:desc.slice(0,40), valor, mes, ano});
     ok++;
   }
 
@@ -1018,7 +999,7 @@ async function importRealizado() {
     return;
   }
 
-  await saveReal();
+  saveReal();
   const anosNovos = [...new Set(REALIZADO.map(r=>r.ano))];
   anosNovos.forEach(a => {
     const sel = document.getElementById('selAno');
@@ -1034,10 +1015,10 @@ async function importRealizado() {
   document.getElementById('txtRealizado').value='';
 }
 
-async function clearTodoRealizado() {
+function clearTodoRealizado() {
   if (!confirm('Limpar TODOS os dados do realizado?')) return;
   REALIZADO = [];
-  await saveReal();
+  saveReal();
   updateInfos();
   populateFiltrosRealizado();
   render();
@@ -1251,7 +1232,11 @@ function updateInfos() {
 function clearAll() {
   if (!confirm('Limpar TODOS os dados (orçado + realizado)?')) return;
   ORCADO={}; REALIZADO=[];
-  localStorage.removeItem(LS_ORC); localStorage.removeItem(LS_REAL); localStorage.removeItem('cp_sc_real_v3');
+  localStorage.removeItem(LS_ORC);
+  // remove todas as chaves de realizado por ano
+  const keysToRemove = [];
+  for (let i=0;i<localStorage.length;i++) { const k=localStorage.key(i); if (/^cp_sc_real_/.test(k)) keysToRemove.push(k); }
+  keysToRemove.forEach(k=>localStorage.removeItem(k));
   updateInfos(); renderOrcEdit(); populateFiltrosRealizado(); render(); renderRealizadoPreview();
 }
 
@@ -1285,7 +1270,7 @@ function backupJSON() {
   a.download = `backup_contaspagas_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
-init().catch(e=>console.error('init error',e));
+init();
 </script>
 </body>
 </html>
