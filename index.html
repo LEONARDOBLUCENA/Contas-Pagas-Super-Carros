@@ -246,6 +246,19 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
       <div class="chart-wrap"><canvas id="chartMensal"></canvas></div>
     </div>
   </div>
+  <div class="tcard" style="margin-bottom:16px">
+    <div class="tcard-hdr"><h3>Top 10 — Por Fornecedor (Fantasia)</h3></div>
+    <div class="tscroll"><table>
+      <thead><tr>
+        <th style="text-align:left">#</th>
+        <th style="text-align:left">Fornecedor</th>
+        <th style="text-align:left">Grupo</th>
+        <th>Total Pago</th>
+        <th>% do Total</th>
+      </tr></thead>
+      <tbody id="bodyTop10"></tbody>
+    </table></div>
+  </div>
   <div class="tcard">
     <div class="tcard-hdr"><h3>Resumo por Conta</h3></div>
     <div class="tscroll"><table>
@@ -444,7 +457,6 @@ function init() {
   if (orc) ORCADO = JSON.parse(orc);
   REALIZADO = loadReal();
   if (!Array.isArray(REALIZADO)) REALIZADO = [];
-  console.log('[init] REALIZADO carregado:', REALIZADO.length, 'registros | chaves ls:', Object.keys(localStorage).filter(k=>/^cp_sc_real_/.test(k)));
 
   const now = new Date();
   const anoAtual = now.getFullYear();
@@ -685,6 +697,7 @@ function render() {
   const ano = parseInt(document.getElementById('selAno').value) || new Date().getFullYear();
   const meses = selectedMeses.length ? selectedMeses : [1,2,3,4,5,6,7,8,9,10,11,12];
   renderKPIs(ano, meses);
+  renderTop10(ano, meses);
   renderResumo(ano, meses);
   renderCharts(ano, meses);
 }
@@ -743,6 +756,42 @@ function renderKPIs(ano, meses) {
   document.getElementById('kpiGrid').innerHTML = kpis.map(k =>
     `<div class="kpi-card ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div>${k.s?`<div class="ks">${k.s}</div>`:''}</div>`
   ).join('');
+}
+
+function renderTop10(ano, meses) {
+  const tbody = document.getElementById('bodyTop10');
+  if (!tbody) return;
+
+  // filtra registros pelo ano e meses selecionados
+  const dados = REALIZADO.filter(r => r.ano === ano && meses.includes(r.mes));
+
+  // agrupa por fantasia
+  const porFant = {};
+  dados.forEach(r => {
+    const key = (r.fantasia || '').trim() || '(sem fornecedor)';
+    if (!porFant[key]) porFant[key] = {total:0, cod:r.cod};
+    porFant[key].total += r.valor;
+  });
+
+  const total = Object.values(porFant).reduce((s,v)=>s+v.total, 0);
+  const top10 = Object.entries(porFant)
+    .sort((a,b)=>b[1].total-a[1].total)
+    .slice(0,10);
+
+  if (!top10.length) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sem dados</td></tr>`; return; }
+
+  tbody.innerHTML = top10.map(([fant, d], i) => {
+    const pct = total ? (d.total/total*100) : 0;
+    const grupo = getGrupoNome(d.cod);
+    const bar = `<div style="display:inline-block;width:${Math.round(pct*1.5)}px;height:6px;background:var(--accent);border-radius:3px;vertical-align:middle;margin-right:6px;opacity:.7"></div>`;
+    return `<tr>
+      <td style="color:var(--text3);font-size:12px">${i+1}</td>
+      <td style="text-align:left;font-weight:500">${fant}</td>
+      <td style="text-align:left;font-size:11px;color:var(--text3)">${grupo}</td>
+      <td>${fmtR(d.total)}</td>
+      <td style="white-space:nowrap">${bar}${pct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
 }
 
 function renderResumo(ano, meses) {
@@ -987,7 +1036,7 @@ function importRealizado() {
     const valor = Math.abs(parseFloat(rawVal) || 0);
     if (valor === 0) { semValor++; continue; }
 
-    REALIZADO.push({cod, desc:desc.slice(0,40), valor, mes, ano});
+    REALIZADO.push({cod, desc:desc.slice(0,40), valor, mes, ano, dtPgto, fantasia:fantasia.slice(0,40), ref:ref.slice(0,50)});
     ok++;
   }
 
@@ -1088,50 +1137,55 @@ function renderRealizadoPreview() {
     valMap[mk] = (valMap[mk]||0) + r.valor;
   });
 
-  const thMeses = mesesCols.map(c=>`<th>${MESES[c.mes-1]}/${c.ano}</th>`).join('');
-
-  // agrupa por grupo
-  const porGrupo = new Map();
-  codMap.forEach((desc,cod) => {
-    const gid = getGrupoId(cod);
-    if (!porGrupo.has(gid)) porGrupo.set(gid, []);
-    porGrupo.get(gid).push(cod);
+  // ordena por data pagto desc
+  dados.sort((a,b) => {
+    const da = a.dtPgto ? a.dtPgto.split('/').reverse().join('') : '';
+    const db = b.dtPgto ? b.dtPgto.split('/').reverse().join('') : '';
+    return db.localeCompare(da);
   });
 
+  const totalGeral = dados.reduce((s,r)=>s+r.valor,0);
+
   let bodyHtml = '';
-  porGrupo.forEach((cods, gid) => {
+  // agrupa por grupo para separadores
+  const porGrupo = new Map();
+  dados.forEach(r => {
+    const gid = getGrupoId(r.cod);
+    if (!porGrupo.has(gid)) porGrupo.set(gid, []);
+    porGrupo.get(gid).push(r);
+  });
+
+  porGrupo.forEach((regs, gid) => {
     const gnome = GRUPOS_DEF.find(g=>g.id===gid)?.nome || 'Outros';
-    const subCels = mesesCols.map(c => {
-      const tot = cods.reduce((s,cod)=>s+(valMap[`${cod}|${c.key}`]||0),0);
-      return `<td style="font-weight:700">${tot!==0?fmtR(tot,false):'—'}</td>`;
-    }).join('');
-    bodyHtml += `<tr class="tr-group"><td colspan="2">▸ ${gnome}</td>${subCels}</tr>`;
-    cods.forEach(cod => {
-      const cels = mesesCols.map(c => {
-        const v = valMap[`${cod}|${c.key}`];
-        return v!==undefined ? `<td>${fmtR(v,false)}</td>` : `<td style="color:var(--text3)">—</td>`;
-      }).join('');
-      bodyHtml += `<tr><td>${cod}</td><td>${codMap.get(cod)}</td>${cels}</tr>`;
+    const subtotal = regs.reduce((s,r)=>s+r.valor,0);
+    bodyHtml += `<tr class="tr-group"><td colspan="5">▸ ${gnome}</td><td style="font-weight:700">${fmtR(subtotal)}</td></tr>`;
+    regs.forEach(r => {
+      bodyHtml += `<tr>
+        <td>${r.cod}</td>
+        <td>${r.desc||'—'}</td>
+        <td style="white-space:nowrap">${r.dtPgto||'—'}</td>
+        <td>${r.fantasia||'—'}</td>
+        <td style="color:var(--text2);font-size:12px">${r.ref||'—'}</td>
+        <td>${fmtR(r.valor)}</td>
+      </tr>`;
     });
   });
 
-  const totCels = mesesCols.map(c => {
-    const tot = dados.filter(r=>r.ano===c.ano&&r.mes===c.mes).reduce((s,r)=>s+r.valor,0);
-    return `<td>${fmtR(tot,false)}</td>`;
-  }).join('');
-  bodyHtml += `<tr class="tr-total"><td colspan="2">TOTAL GERAL</td>${totCels}</tr>`;
+  bodyHtml += `<tr class="tr-total"><td colspan="5">TOTAL GERAL</td><td>${fmtR(totalGeral)}</td></tr>`;
 
   scroll.innerHTML = `<table>
     <thead><tr>
       <th style="text-align:left">Segmento</th>
       <th style="text-align:left">Descrição</th>
-      ${thMeses}
+      <th style="text-align:left">Dt. Pgto</th>
+      <th style="text-align:left">Fantasia</th>
+      <th style="text-align:left">Referência</th>
+      <th>Valor</th>
     </tr></thead>
     <tbody>${bodyHtml}</tbody>
   </table>`;
 
-  const nPeriodos = mesesCols.length;
-  document.getElementById('tituloRealizado').textContent = `Realizado — ${nPeriodos} período(s) · ${dados.length} registros`;
+  document.getElementById('tituloRealizado').textContent = `Realizado — ${dados.length} lançamentos`;
 }
 
 function realFieldChange(el) {}
