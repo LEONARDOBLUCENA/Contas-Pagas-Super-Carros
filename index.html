@@ -247,8 +247,8 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     </div>
   </div>
   <div class="tcard" style="margin-bottom:16px">
-    <div class="tcard-hdr"><h3>Top 10 — Por Fornecedor (Fantasia)</h3></div>
-    <div class="tscroll"><table>
+    <div class="tcard-hdr"><h3>Fornecedores — Por Total Pago</h3></div>
+    <div class="tscroll" style="max-height:260px"><table>
       <thead><tr>
         <th style="text-align:left">#</th>
         <th style="text-align:left">Fornecedor</th>
@@ -316,6 +316,8 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     <select id="filtSegReal" onchange="renderRealizadoPreview()">
       <option value="">Todos</option>
     </select>
+    <span class="fb-sep">|</span>
+    <button class="btn btn-outline" style="font-size:12px;padding:5px 12px" onclick="exportRealizadoXLSX()">⬇ Excel</button>
   </div>
 
   <!-- TABELA -->
@@ -371,6 +373,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
@@ -774,13 +777,12 @@ function renderTop10(ano, meses) {
   });
 
   const total = Object.values(porFant).reduce((s,v)=>s+v.total, 0);
-  const top10 = Object.entries(porFant)
-    .sort((a,b)=>b[1].total-a[1].total)
-    .slice(0,10);
+  const todos = Object.entries(porFant)
+    .sort((a,b)=>b[1].total-a[1].total);
 
-  if (!top10.length) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sem dados</td></tr>`; return; }
+  if (!todos.length) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sem dados para o período selecionado</td></tr>`; return; }
 
-  tbody.innerHTML = top10.map(([fant, d], i) => {
+  tbody.innerHTML = todos.map(([fant, d], i) => {
     const pct = total ? (d.total/total*100) : 0;
     const grupo = getGrupoNome(d.cod);
     const bar = `<div style="display:inline-block;width:${Math.round(pct*1.5)}px;height:6px;background:var(--accent);border-radius:3px;vertical-align:middle;margin-right:6px;opacity:.7"></div>`;
@@ -1061,6 +1063,45 @@ function importRealizado() {
   renderRealizadoPreview();
   showMsg('msgRealizado',`✓ ${ok} registros adicionados (${semCod+semData+semValor} ignorados). Total: ${REALIZADO.length}.`,'ok');
   document.getElementById('txtRealizado').value='';
+}
+
+function exportRealizadoXLSX() {
+  const filtAno = parseInt(document.getElementById('filtAnoReal')?.value || '0');
+  const filtMes = parseInt(document.getElementById('filtMesReal')?.value || '0');
+  const filtSeg = document.getElementById('filtSegReal')?.value || '';
+
+  let dados = [...REALIZADO];
+  if (filtAno) dados = dados.filter(r => r.ano === filtAno);
+  if (filtMes) dados = dados.filter(r => r.mes === filtMes);
+  if (filtSeg) dados = dados.filter(r => r.cod === filtSeg);
+
+  dados.sort((a,b) => {
+    const da = (a.dtPgto||'').split('/').reverse().join('');
+    const db = (b.dtPgto||'').split('/').reverse().join('');
+    return db.localeCompare(da);
+  });
+
+  if (!dados.length) { alert('Nenhum dado para exportar.'); return; }
+
+  const rows = dados.map(r => ({
+    'Segmento':   r.cod,
+    'Descrição':  r.desc || '',
+    'Dt. Pgto':   r.dtPgto || '',
+    'Fantasia':   r.fantasia || '',
+    'Referência': r.ref || '',
+    'Grupo':      getGrupoNome(r.cod),
+    'Valor':      r.valor,
+    'Mês':        r.mes,
+    'Ano':        r.ano,
+  }));
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:35},{wch:12},{wch:35},{wch:45},{wch:25},{wch:14},{wch:6},{wch:6}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Realizado');
+
+  const periodo = filtAno ? (filtMes ? `${filtAno}_${MESES[filtMes-1]}` : String(filtAno)) : 'Todos';
+  XLSX.writeFile(wb, `ConstasPagas_Realizado_${periodo}.xlsx`);
 }
 
 function clearTodoRealizado() {
