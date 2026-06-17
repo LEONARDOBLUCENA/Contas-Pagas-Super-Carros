@@ -877,97 +877,62 @@ function clearOrcadoAno() {
 // ═══════════════════════════════════════════════════════════════════════
 // IMPORT REALIZADO — nova estrutura
 // ═══════════════════════════════════════════════════════════════════════
-// Colunas esperadas (índice 0-based):
-// 0:Segmento  1:Descr.Segmento  2:Dt.Venc  3:Conta  4:Fantasia  5:Referência  6:Vl.pagamento  7:Dt Pgto
 function importRealizado() {
   const raw = document.getElementById('txtRealizado').value.trim();
   if (!raw) { showMsg('msgRealizado','Cole os dados antes de processar.','err'); return; }
 
-  // normaliza string para busca de coluna
   const norm = s => s.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/[()\.\s]/g,'').trim();
+    .replace(/[().\s]/g,'').trim();
 
-  // split por tab preservando quebras de linha internas
-  // O Excel cola células com quebra de linha como \n dentro de aspas,
-  // mas ao colar no textarea sem aspas, vira \n solto entre tabs.
-  // Estratégia: juntar todos os tokens por tab e reconstruir linhas
-  // com base no número de colunas do cabeçalho.
+  // separa linhas (remove \r, filtra vazias)
+  const linhas = raw.replace(/\r/g,'').split('\n').filter(l => l.trim());
+  if (linhas.length < 2) { showMsg('msgRealizado','Dados insuficientes.','err'); return; }
 
-  // 1. pega todos os tokens separados por \t (ignorando \n por ora)
-  const rawNorm = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
-
-  // 2. divide em tokens por tab, mantendo \n como marcador especial
-  //    substitui \n por um marcador único para detectar quebras reais vs internas
-  // Heurística: se uma linha tem poucos tokens, provavelmente é continuação da anterior
-  const linhasRaw = rawNorm.split('\n');
-
-  // descobre quantas colunas tem o cabeçalho juntando linhas até ter tabs suficientes
-  let cabecalhoStr = '';
-  let linhaStart = 0;
-  for (let i = 0; i < Math.min(10, linhasRaw.length); i++) {
-    cabecalhoStr += (cabecalhoStr ? '\t' : '') + linhasRaw[i];
-    if (cabecalhoStr.split('\t').length >= 20) { linhaStart = i + 1; break; }
-    if (i === 0 && linhasRaw[0].split('\t').length >= 20) { linhaStart = 1; break; }
-  }
-
-  const cabecalho = cabecalhoStr.split('\t').map(c => c.trim());
+  // cabeçalho = primeira linha
+  const cabecalho = linhas[0].split('\t').map(c => c.trim());
   const nCols = cabecalho.length;
 
-  // mapeia colunas por nome normalizado
   const idxMap = {};
   cabecalho.forEach((c,i) => { idxMap[norm(c)] = i; });
 
   const find = (...nomes) => {
-    for (const n of nomes) {
-      const v = idxMap[norm(n)];
-      if (v !== undefined) return v;
-    }
+    for (const n of nomes) { if (idxMap[norm(n)] !== undefined) return idxMap[norm(n)]; }
     return undefined;
   };
 
   const iCod   = find('Segmento');
-  const iDesc  = find('Descr. Segmento','Descr Segmento','Descr segmento');
-  const iVenc  = find('Dt.venc.','Dt venc','Dt. Venc');
+  const iDesc  = find('Descr. Segmento','Descr Segmento');
+  const iVenc  = find('Dt.venc.','Dtvenc');
   const iConta = find('Conta');
   const iFant  = find('Fantasia');
   const iRef   = find('Referência','Referencia');
-  const iVal   = find('Vl.pagamento(título)','Vlpagamentotitulo','Vl pagamento titulo','Vl pagamento(titulo)');
-  const iPgto  = find('Dt.pagto','Dtpagto','Dt pagto','Dt pagamento');
+  const iVal   = find('Vl.pagamento(título)','Vlpagamentotitulo');
+  const iPgto  = find('Dt.pagto','Dtpagto');
 
   if (iCod===undefined || iDesc===undefined || iVal===undefined || iPgto===undefined) {
+    const sample = cabecalho.map((c,i)=>`${i}:${norm(c)}`).join(', ');
     showMsg('msgRealizado',
-      `Colunas não encontradas — Seg:${iCod} Desc:${iDesc} Valor:${iVal} DtPgto:${iPgto}<br>
-      Cabeçalho (${nCols} cols): ${cabecalho.slice(0,8).join(' | ')}...<br>
-      <small>Norm amostras: "${norm(cabecalho[20]||'')}" / "${norm(cabecalho[21]||'')}"</small>`,'err');
+      `Colunas não encontradas — Seg:${iCod} Desc:${iDesc} Val:${iVal} DtPgto:${iPgto}<br>
+      <small>${nCols} colunas detectadas: ${sample}</small>`,'err');
     return;
   }
 
-  // reconstrói linhas de dados: junta tokens até ter nCols colunas por linha
-  const tokens = linhasRaw.slice(linhaStart).join('\t').split('\t');
-  const linhasDados = [];
-  for (let i = 0; i < tokens.length; i += nCols) {
-    const slice = tokens.slice(i, i + nCols);
-    if (slice.length === nCols) linhasDados.push(slice);
-  }
+  let ok=0, semCod=0, semData=0, semValor=0;
 
-  let ok=0, skip=0;
+  for (let li = 1; li < linhas.length; li++) {
+    const cols = linhas[li].split('\t');
+    if (cols.length < nCols - 2) continue; // linha curta (em branco ou total)
 
-  linhasDados.forEach(cols => {
     const cod      = (cols[iCod]   || '').trim();
     const desc     = (cols[iDesc]  || '').trim();
-    const dtVenc   = iVenc  !== undefined ? (cols[iVenc]  || '').trim() : '';
-    const conta    = iConta !== undefined ? (cols[iConta] || '').trim() : '';
-    const fantasia = iFant  !== undefined ? (cols[iFant]  || '').trim() : '';
-    const ref      = iRef   !== undefined ? (cols[iRef]   || '').trim() : '';
-    const rawVal   = (cols[iVal]||'0').trim()
-      .replace(/[^\d,\.\-]/g,'')
-      .replace(/\.(?=\d{3}(,|$))/g,'')
-      .replace(',','.');
-    const valor    = parseFloat(rawVal) || 0;
-    const dtPgto   = (cols[iPgto] || '').trim();
+    const dtVenc   = (cols[iVenc]  || '').trim();
+    const conta    = (cols[iConta] || '').trim();
+    const fantasia = (cols[iFant]  || '').trim();
+    const ref      = (cols[iRef]   || '').trim();
+    const dtPgto   = (cols[iPgto]  || '').trim();
 
-    if (!cod) { skip++; return; }
+    if (!cod) { semCod++; continue; }
 
     const partes = dtPgto.split('/');
     let mes = 0, ano = 0;
@@ -975,14 +940,23 @@ function importRealizado() {
       mes = parseInt(partes[1]);
       ano = parseInt(partes[2].length <= 2 ? '20'+partes[2] : partes[2]);
     }
-    if (!mes || mes < 1 || mes > 12 || !ano || ano < 2000) { skip++; return; }
+    if (!mes || mes < 1 || mes > 12 || !ano || ano < 2000) { semData++; continue; }
+
+    const rawVal = (cols[iVal] || '0').trim()
+      .replace(/[^\d,.\-]/g,'')
+      .replace(/\.(?=\d{3}(?:,|$))/g,'')
+      .replace(',','.');
+    const valor = Math.abs(parseFloat(rawVal) || 0);
+    if (valor === 0) { semValor++; continue; }
 
     REALIZADO.push({cod, desc, valor, mes, ano, dtVenc, conta, fantasia, ref, dtPgto});
     ok++;
-  });
+  }
 
   if (!ok) {
-    showMsg('msgRealizado',`Nenhuma linha válida (${skip} ignoradas). Total tokens: ${tokens.length}, colunas: ${nCols}.`,'err');
+    showMsg('msgRealizado',
+      `Nenhuma linha válida. Ignoradas: sem cód=${semCod}, sem data=${semData}, valor zero=${semValor}.<br>
+      <small>Cols detectadas: Seg=${iCod} Val=${iVal} DtPgto=${iPgto} | ${linhas.length} linhas | ${nCols} colunas</small>`,'err');
     return;
   }
 
@@ -998,7 +972,7 @@ function importRealizado() {
   populateFiltrosRealizado();
   render();
   renderRealizadoPreview();
-  showMsg('msgRealizado',`✓ ${ok} registros adicionados (${skip} ignorados). Total: ${REALIZADO.length}.`,'ok');
+  showMsg('msgRealizado',`✓ ${ok} registros adicionados (${semCod+semData+semValor} ignorados). Total: ${REALIZADO.length}.`,'ok');
   document.getElementById('txtRealizado').value='';
 }
 
