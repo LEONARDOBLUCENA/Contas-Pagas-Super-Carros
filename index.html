@@ -389,13 +389,11 @@ function saveReal() {
 
 function loadReal() {
   const registros = [];
-  // varre todas as chaves do localStorage procurando cp_sc_real_YYYY
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (/^cp_sc_real_\d{4}$/.test(key)) {
-      try { registros.push(...JSON.parse(localStorage.getItem(key))); } catch(e) {}
-    }
-  }
+  // coleta todas as chaves primeiro (evita bug de índice ao iterar)
+  const keys = Object.keys(localStorage);
+  keys.filter(k => /^cp_sc_real_\d{4}$/.test(k)).forEach(k => {
+    try { registros.push(...JSON.parse(localStorage.getItem(k))); } catch(e) {}
+  });
   // fallback: chave antiga monolítica
   if (!registros.length) {
     ['cp_sc_real_v3','cp_sc_real_v4_gz'].forEach(k => {
@@ -735,10 +733,10 @@ function renderKPIs(ano, meses) {
   const kpis = [
     {l:'Realizado '+periodo, v:fmtR(rP), c:'c-accent', s:String(ano)},
     {l:'Orçado '+periodo,    v:fmtR(oP), c:'', s:''},
-    {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP<=0?'c-green':'c-red', s:varP<=0?'Abaixo do orçado ✓':'Acima do orçado ✗'},
+    {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP>=0?'c-green':'c-red', s:varP>=0?'Abaixo do orçado ✓':'Acima do orçado ✗'},
     {l:'Realizado Acumulado',v:fmtR(rA), c:'', s:'Jan – '+MESES[mesAcum-1]+'/'+ano},
     {l:'Orçado Acumulado',   v:fmtR(oA), c:'', s:''},
-    {l:'Var. Acumulada',     v:(varA>=0?'+':'')+fmtR(varA,false), c:varA<=0?'c-green':'c-red', s:''},
+    {l:'Var. Acumulada',     v:(varA>=0?'+':'')+fmtR(varA,false), c:varA>=0?'c-green':'c-red', s:''},
   ];
 
   document.getElementById('kpiGrid').innerHTML = kpis.map(k =>
@@ -771,9 +769,9 @@ function renderResumo(ano, meses) {
         <td>${c.cod}</td><td>${c.desc}</td>
         <td style="font-size:11px;color:var(--text3)">${gnome}</td>
         <td style="border-left:1px solid var(--border2)">${fmtR(oP)}</td><td>${fmtR(rP)}</td>
-        <td style="color:${varColor(vP)}">${vP>=0?'+':'-'}${fmtR(vP)}</td>
+        <td>${vP>=0?'+':'-'}${fmtR(vP)}</td>
         <td style="border-left:1px solid var(--border2)">${fmtR(oA)}</td><td>${fmtR(rA)}</td>
-        <td style="color:${varColor(vA)}">${vA>=0?'+':'-'}${fmtR(vA)}</td>
+        <td>${vA>=0?'+':'-'}${fmtR(vA)}</td>
       </tr>`;
     });
     const vGP=gOP-gRP, vGA=gOA-gRA;
