@@ -444,6 +444,7 @@ function init() {
   if (orc) ORCADO = JSON.parse(orc);
   REALIZADO = loadReal();
   if (!Array.isArray(REALIZADO)) REALIZADO = [];
+  console.log('[init] REALIZADO carregado:', REALIZADO.length, 'registros | chaves ls:', Object.keys(localStorage).filter(k=>/^cp_sc_real_/.test(k)));
 
   const now = new Date();
   const anoAtual = now.getFullYear();
@@ -661,16 +662,13 @@ function getRealizadoAcumAte(cod, ano, mesMax) {
 function getContas(ano, filtrarGrupo=true) {
   const rows = [...(ORCADO[String(ano)] || [])];
   const codigos = new Set(rows.map(r => r.cod));
-  Object.keys(REALIZADO)
-    .filter(k => k.startsWith(ano+'-'))
-    .forEach(k => {
-      REALIZADO[k].forEach(r => {
-        if (!codigos.has(r.cod)) {
-          codigos.add(r.cod);
-          rows.push({cod: r.cod, desc: r.desc, isGroup: false, valores: new Array(12).fill(0)});
-        }
-      });
-    });
+  // REALIZADO é array — adiciona contas do realizado que não estão no orçamento
+  REALIZADO.filter(r => r.ano === ano).forEach(r => {
+    if (!codigos.has(r.cod)) {
+      codigos.add(r.cod);
+      rows.push({cod: r.cod, desc: r.desc, isGroup: false, valores: new Array(12).fill(0)});
+    }
+  });
   if (!filtrarGrupo || selectedGrupos === null) return rows;
   return rows.filter(r => selectedGrupos.includes(getGrupoId(r.cod)));
 }
@@ -721,21 +719,24 @@ function renderKPIs(ano, meses) {
     rA += getRealizadoAcumAte(c.cod, ano, mesAcum);
   });
 
-  const varP = oP - rP;
-  const pctP = oP ? rP/oP*100 : 0;
-  const varA = oA - rA;
-  const pctA = oA ? rA/oA*100 : 0;
+  // usa abs para normalizar: orçamento pode ter valores negativos
+  const oPA = Math.abs(oP), rPA = Math.abs(rP);
+  const oAA = Math.abs(oA), rAA = Math.abs(rA);
+  const varP = oPA - rPA;  // positivo = gastou menos que orçado = bom
+  const pctP = oPA ? rPA/oPA*100 : 0;
+  const varA = oAA - rAA;
+  const pctA = oAA ? rAA/oAA*100 : 0;
 
   const periodo = selectedMeses.length === 12 ? 'Ano' :
     selectedMeses.length === 1 ? MESES_FULL[selectedMeses[0]-1] :
     MESES[selectedMeses[0]-1]+' – '+MESES[selectedMeses[selectedMeses.length-1]-1];
 
   const kpis = [
-    {l:'Realizado '+periodo, v:fmtR(rP), c:'c-accent', s:String(ano)},
-    {l:'Orçado '+periodo,    v:fmtR(oP), c:'', s:''},
+    {l:'Realizado '+periodo, v:fmtR(rPA), c:'c-accent', s:String(ano)},
+    {l:'Orçado '+periodo,    v:fmtR(oPA), c:'', s:''},
     {l:'Variação R$',        v:(varP>=0?'+':'')+fmtR(varP,false), c:varP>=0?'c-green':'c-red', s:varP>=0?'Abaixo do orçado ✓':'Acima do orçado ✗'},
-    {l:'Realizado Acumulado',v:fmtR(rA), c:'', s:'Jan – '+MESES[mesAcum-1]+'/'+ano},
-    {l:'Orçado Acumulado',   v:fmtR(oA), c:'', s:''},
+    {l:'Realizado Acumulado',v:fmtR(rAA), c:'', s:'Jan – '+MESES[mesAcum-1]+'/'+ano},
+    {l:'Orçado Acumulado',   v:fmtR(oAA), c:'', s:''},
     {l:'Var. Acumulada',     v:(varA>=0?'+':'')+fmtR(varA,false), c:varA>=0?'c-green':'c-red', s:''},
   ];
 
