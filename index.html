@@ -886,7 +886,7 @@ function importRealizado() {
   // normaliza string para busca de coluna
   const norm = s => s.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/[()\.]/g,'').replace(/\s+/g,' ').trim();
+    .replace(/[()\.\s]/g,'').trim();
 
   // split por tab preservando quebras de linha internas
   // O Excel cola células com quebra de linha como \n dentro de aspas,
@@ -932,13 +932,14 @@ function importRealizado() {
   const iConta = find('Conta');
   const iFant  = find('Fantasia');
   const iRef   = find('Referência','Referencia');
-  const iVal   = find('Vl.pagamento(título)','Vl pagamento titulo','Vl.pagamento titulo');
-  const iPgto  = find('Dt.pagto','Dt pagto','Dt pagamento');
+  const iVal   = find('Vl.pagamento(título)','Vlpagamentotitulo','Vl pagamento titulo','Vl pagamento(titulo)');
+  const iPgto  = find('Dt.pagto','Dtpagto','Dt pagto','Dt pagamento');
 
   if (iCod===undefined || iDesc===undefined || iVal===undefined || iPgto===undefined) {
     showMsg('msgRealizado',
       `Colunas não encontradas — Seg:${iCod} Desc:${iDesc} Valor:${iVal} DtPgto:${iPgto}<br>
-      Cabeçalho (${nCols} cols): ${cabecalho.slice(0,8).join(' | ')}...`,'err');
+      Cabeçalho (${nCols} cols): ${cabecalho.slice(0,8).join(' | ')}...<br>
+      <small>Norm amostras: "${norm(cabecalho[20]||'')}" / "${norm(cabecalho[21]||'')}"</small>`,'err');
     return;
   }
 
