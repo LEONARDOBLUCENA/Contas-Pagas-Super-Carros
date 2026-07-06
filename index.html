@@ -240,26 +240,17 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 <!-- ══ DASHBOARD ══ -->
 <div id="tab-dashboard" class="tab-panel active">
   <div class="kpi-grid" id="kpiGrid"></div>
-  <div class="charts-row" style="grid-template-columns:1fr">
+  <div class="charts-row" style="grid-template-columns:1fr 1fr;gap:12px">
     <div class="chart-card">
       <h3>Orçado vs Realizado — Mês a Mês</h3>
       <div class="chart-wrap"><canvas id="chartMensal"></canvas></div>
     </div>
+    <div class="chart-card">
+      <h3>Realizado por Grupo</h3>
+      <div class="chart-wrap"><canvas id="chartGrupo"></canvas></div>
+    </div>
   </div>
   <div class="tcard" style="margin-bottom:16px">
-    <div class="tcard-hdr"><h3>Fornecedores — Por Total Pago</h3></div>
-    <div class="tscroll" style="max-height:260px"><table>
-      <thead><tr>
-        <th style="text-align:left">#</th>
-        <th style="text-align:left">Fornecedor</th>
-        <th style="text-align:left">Grupo</th>
-        <th>Total Pago</th>
-        <th>% do Total</th>
-      </tr></thead>
-      <tbody id="bodyTop10"></tbody>
-    </table></div>
-  </div>
-  <div class="tcard">
     <div class="tcard-hdr"><h3>Resumo por Conta</h3></div>
     <div class="tscroll"><table>
       <thead><tr>
@@ -425,8 +416,8 @@ const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho
 
 // ── CLASSIFICAÇÃO POR GRUPO ──────────────────────────────────────────────
 const GRUPOS_DEF = [
-  { id:'impostos',    nome:'Impostos e Tributos',      codigos:['203101','203102','203105','203106','203104'] },
-  { id:'impfat',      nome:'Imposto Sobre Faturamento',  codigos:['203103','301109'] },
+  { id:'impostos',    nome:'Impostos e Tributos',      codigos:['203101','203102','203105','203106'] },
+  { id:'impfat',      nome:'Imposto Sobre Faturamento',  codigos:['203103','203104','301109'] },
   { id:'pessoal',     nome:'Pessoal e Encargos',        codigos:['301101','301119','301118','301102','301103','301104','301105','301107','301108','301110','301111','301112','301113','301114','301116','301117'] },
   { id:'comissoes',   nome:'Outras Comissões',          codigos:['202101','202104'] },
   { id:'operacional', nome:'Custos Operacionais',       codigos:['201104','201103','302121'] },
@@ -913,6 +904,40 @@ function renderCharts(ano, meses) {
         }
       }
     });
+
+    // Grafico por Grupo (horizontal)
+    const canvasG = document.getElementById('chartGrupo');
+    if (canvasG) {
+      if (window._chartGrupo) { window._chartGrupo.destroy(); window._chartGrupo = null; }
+      const gruposAtivos = selectedGrupos || GRUPOS_DEF.map(g=>g.id);
+      const allGrupos = GRUPOS_DEF.filter(g => gruposAtivos.includes(g.id));
+      const labelsG   = allGrupos.map(g => g.nome);
+      const dataOrcG  = allGrupos.map(g =>
+        Math.abs(getContas(ano).filter(c => getGrupoId(c.cod) === g.id)
+          .reduce((s,c) => s + getOrcadoPeriodo(c.cod, ano, meses), 0))
+      );
+      const dataRealG = allGrupos.map(g =>
+        Math.abs(REALIZADO.filter(r => r.ano === ano && meses.includes(r.mes) && getGrupoId(r.cod) === g.id)
+          .reduce((s,r) => s + r.valor, 0))
+      );
+      window._chartGrupo = new Chart(canvasG, {
+        type: 'bar',
+        data: { labels: labelsG, datasets: [
+          { label:'Orçado',    data: dataOrcG,  backgroundColor:'rgba(180,83,9,0.25)',  borderColor:'#b45309', borderWidth:1 },
+          { label:'Realizado', data: dataRealG, backgroundColor:'rgba(14,125,85,0.35)', borderColor:'#0e7d55', borderWidth:1 },
+        ]},
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: tc, callback: v => 'R$'+(v/1000).toFixed(0)+'k' }, grid: { color: gc } },
+            y: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc } }
+          }
+        }
+      });
+    }
   }, 100);
 }
 
