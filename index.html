@@ -194,6 +194,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     <button class="tab-btn active" onclick="setTab('dashboard',this)">Dashboard</button>
     <button class="tab-btn" onclick="setTab('realizado',this)">Realizado</button>
     <button class="tab-btn" onclick="setTab('orcamento',this)">Orçamento Anual</button>
+    <button class="tab-btn" onclick="setTab('analise',this)">Análise de Custos</button>
   </nav>
 </header>
 
@@ -383,6 +384,108 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
   </div>
 </div>
 
+
+<div id="tab-analise" class="tab-panel">
+
+  <!-- Filtros -->
+  <div class="filter-bar" style="margin-bottom:16px">
+    <span class="fb-label">Ano</span>
+    <select id="analAno" onchange="renderAnalise()"></select>
+    <span class="fb-sep">|</span>
+    <span class="fb-label">Período</span>
+    <select id="analMes" onchange="renderAnalise()">
+      <option value="0">Acumulado (Jan–mês atual)</option>
+      <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+      <option value="3">Março</option><option value="4">Abril</option>
+      <option value="5">Maio</option><option value="6">Junho</option>
+      <option value="7">Julho</option><option value="8">Agosto</option>
+      <option value="9">Setembro</option><option value="10">Outubro</option>
+      <option value="11">Novembro</option><option value="12">Dezembro</option>
+    </select>
+  </div>
+
+  <!-- Faturamento -->
+  <div class="tcard" style="margin-bottom:16px">
+    <div class="tcard-hdr">
+      <h3>Faturamento Mensal</h3>
+      <button class="btn btn-accent" style="font-size:12px" onclick="saveFaturamento()">💾 Salvar</button>
+    </div>
+    <div style="padding:16px;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr id="fatHead"></tr></thead>
+        <tbody><tr id="fatBody"></tr></tbody>
+      </table>
+    </div>
+    <div id="msgFat" style="padding:0 16px 12px;font-size:12px"></div>
+  </div>
+
+  <!-- KPIs -->
+  <div id="analKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:16px"></div>
+
+  <!-- Bloco 1: Análise por grupo -->
+  <div class="tcard" style="margin-bottom:16px">
+    <div class="tcard-hdr"><h3 id="analTitle">Análise de Custos por Grupo</h3></div>
+    <div class="tscroll">
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Grupo</th>
+          <th>Realizado R$</th>
+          <th>% Faturamento</th>
+          <th>Meta %</th>
+          <th>Status</th>
+          <th>Orçado R$</th>
+          <th>Var. Orç.</th>
+        </tr></thead>
+        <tbody id="bodyAnalise"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bloco 2: Evolução mensal (saldo fat - despesas) -->
+  <div class="tcard" style="margin-bottom:16px">
+    <div class="tcard-hdr"><h3>Evolução Mensal — Faturamento vs Despesas</h3></div>
+    <div class="tscroll">
+      <table id="tblEvolMensal"><thead></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <!-- Bloco 3: Top fornecedores -->
+  <div class="tcard" style="margin-bottom:16px">
+    <div class="tcard-hdr">
+      <h3>Top Fornecedores — Período</h3>
+      <span id="analFornLabel" style="font-size:12px;color:var(--text2)"></span>
+    </div>
+    <div class="tscroll" style="max-height:360px">
+      <table>
+        <thead><tr>
+          <th style="text-align:left">#</th>
+          <th style="text-align:left">Fornecedor</th>
+          <th style="text-align:left">Grupo</th>
+          <th>Total R$</th>
+          <th>% Fat.</th>
+          <th>% Total Desp.</th>
+        </tr></thead>
+        <tbody id="bodyFornecedores"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bloco 4: Evolução % por grupo -->
+  <div class="tcard" style="margin-bottom:16px">
+    <div class="tcard-hdr"><h3>Evolução Mensal — % sobre Faturamento por Grupo</h3></div>
+    <div class="tscroll">
+      <table id="tblEvolucao"><thead></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <!-- Bloco 5: Alertas e insights -->
+  <div class="tcard">
+    <div class="tcard-hdr"><h3>⚠ Alertas e Pontos de Atenção</h3></div>
+    <div id="analAlertas" style="padding:16px;display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+
+</div>
+
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -392,6 +495,12 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 // STATE
 // ═══════════════════════════════════════════════════════════════════════
 const LS_ORC  = 'cp_sc_orc_v2';
+const LS_FAT  = 'cp_sc_fat_v1';  // faturamento: {ano: [12 valores]}
+
+const METAS = {
+  pessoal:  25,
+  manutencao: 5,
+};
 // chave por ano: cp_sc_real_YYYY
 function lsKeyAno(ano) { return 'cp_sc_real_' + ano; }
 
@@ -468,6 +577,287 @@ let chartMensal = null;
 // ═══════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// FATURAMENTO
+// ═══════════════════════════════════════════════════════════════════════
+function loadFat() {
+  try { return JSON.parse(localStorage.getItem(LS_FAT)||'{}'); } catch(e){ return {}; }
+}
+
+function saveFaturamento() {
+  const ano = parseInt(document.getElementById('analAno')?.value) || new Date().getFullYear();
+  const fat = loadFat();
+  if (!fat[ano]) fat[ano] = new Array(12).fill(0);
+  document.querySelectorAll('.fat-input').forEach((inp,i) => {
+    fat[ano][i] = parseFloat(inp.value.replace(/[.]/g,'').replace(',','.'))||0;
+  });
+  localStorage.setItem(LS_FAT, JSON.stringify(fat));
+  const msg = document.getElementById('msgFat');
+  if (msg) { msg.textContent = '✓ Faturamento salvo.'; msg.style.color='var(--green)'; setTimeout(()=>msg.textContent='',2500); }
+  renderAnalise();
+}
+
+function getFatMes(ano, mes) {
+  const fat = loadFat()[ano] || new Array(12).fill(0);
+  return fat[mes-1] || 0;
+}
+function getFatPeriodo(ano, meses) {
+  const fat = loadFat()[ano] || new Array(12).fill(0);
+  return meses.reduce((s,m) => s + (fat[m-1]||0), 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RENDER ANÁLISE COMPLETA
+// ═══════════════════════════════════════════════════════════════════════
+function renderAnalise() {
+  const ano    = parseInt(document.getElementById('analAno')?.value) || new Date().getFullYear();
+  const mesVal = parseInt(document.getElementById('analMes')?.value) || 0;
+  // mesVal=0 → acumulado até mês com dados; mesVal>0 → mês específico
+  const ultimoMesComDados = Math.max(...REALIZADO.filter(r=>r.ano===ano).map(r=>r.mes), 1);
+  const meses = mesVal === 0
+    ? Array.from({length: ultimoMesComDados}, (_,i) => i+1)
+    : [mesVal];
+  const periodoLabel = mesVal === 0
+    ? `Jan–${MESES[ultimoMesComDados-1]}/${ano}`
+    : `${MESES[mesVal-1]}/${ano}`;
+
+  // ── Inputs faturamento ──────────────────────────────────────────────
+  const fat12 = loadFat()[ano] || new Array(12).fill(0);
+  const fatHead = document.getElementById('fatHead');
+  const fatBody = document.getElementById('fatBody');
+  if (fatHead) {
+    fatHead.innerHTML = MESES.map(m=>`<th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text2);font-weight:600">${m}</th>`).join('');
+    fatBody.innerHTML = fat12.map((v,i)=>
+      `<td style="padding:4px 6px"><input class="fat-input" type="text"
+        style="width:90px;text-align:right;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:5px 8px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text)"
+        value="${v ? v.toLocaleString('pt-BR',{minimumFractionDigits:2}) : ''}"
+        placeholder="0,00"
+        onblur="this.value=this.value?(parseFloat(this.value.replace(/[.]/g,'').replace(',','.'))||0).toLocaleString('pt-BR',{minimumFractionDigits:2}):''"></td>`
+    ).join('');
+  }
+
+  const fatTotal  = getFatPeriodo(ano, meses);
+  const despTotal = Math.abs(REALIZADO.filter(r=>r.ano===ano && meses.includes(r.mes)).reduce((s,r)=>s+r.valor,0));
+  const saldo     = fatTotal - despTotal;
+  const pctCusto  = fatTotal ? despTotal/fatTotal*100 : 0;
+
+  document.getElementById('analTitle').textContent = `Análise de Custos por Grupo — ${periodoLabel}`;
+
+  // ── KPIs ────────────────────────────────────────────────────────────
+  const kpisEl = document.getElementById('analKpis');
+  if (kpisEl) kpisEl.innerHTML = [
+    { l:'Faturamento',         v:fmtR(fatTotal),  s:periodoLabel, c:'' },
+    { l:'Total Saídas',        v:fmtR(despTotal), s:'', c:'' },
+    { l:'Saldo',               v:fmtR(Math.abs(saldo),false), s:saldo>=0?'Superávit':'Déficit', c:saldo>=0?'c-green':'c-red' },
+    { l:'Custo / Faturamento', v:pctCusto.toFixed(1)+'%', s:'', c:pctCusto>120?'c-red':pctCusto>80?'c-amber':'c-green' },
+    { l:'Maior fornecedor',    v: (() => {
+        const top = Object.entries(
+          REALIZADO.filter(r=>r.ano===ano&&meses.includes(r.mes))
+            .reduce((acc,r)=>{ const f=r.fantasia||'?'; acc[f]=(acc[f]||0)+r.valor; return acc; }, {})
+        ).sort((a,b)=>b[1]-a[1])[0];
+        return top ? top[0].slice(0,18) : '—';
+      })(), s:'por saídas', c:'' },
+  ].map(k=>`<div class="kpi-card">
+    <div class="kpi-label">${k.l}</div>
+    <div class="kpi-value ${k.c}">${k.v}</div>
+    <div class="kpi-sub">${k.s}</div>
+  </div>`).join('');
+
+  // ── Bloco 1: Análise por grupo ──────────────────────────────────────
+  const tbody = document.getElementById('bodyAnalise');
+  if (tbody) {
+    const gruposRows = GRUPOS_DEF.map(g => {
+      const real = Math.abs(REALIZADO.filter(r=>r.ano===ano&&meses.includes(r.mes)&&getGrupoId(r.cod)===g.id).reduce((s,r)=>s+r.valor,0));
+      const orc  = Math.abs(getContas(ano).filter(c=>getGrupoId(c.cod)===g.id).reduce((s,c)=>s+getOrcadoPeriodo(c.cod,ano,meses),0));
+      const pct  = fatTotal ? real/fatTotal*100 : 0;
+      const meta = METAS[g.id];
+      return {g, real, orc, pct, meta};
+    }).filter(r=>r.real>0||r.orc>0).sort((a,b)=>b.real-a.real);
+
+    // linha de não classificados
+    const outros = Math.abs(REALIZADO.filter(r=>r.ano===ano&&meses.includes(r.mes)&&getGrupoId(r.cod)==='outros').reduce((s,r)=>s+r.valor,0));
+
+    tbody.innerHTML = gruposRows.map(({g,real,orc,pct,meta}) => {
+      const varOrc = orc - real;
+      const metaCell = meta ? `${meta}%` : '<span style="color:var(--text3)">—</span>';
+      let status = '<span style="color:var(--text3)">—</span>';
+      if (meta) {
+        const ok = pct <= meta;
+        status = ok
+          ? `<span style="color:var(--green);font-weight:600">✓ OK</span>`
+          : `<span style="color:var(--red);font-weight:600">✗ +${(pct-meta).toFixed(1)}pp</span>`;
+      }
+      const pctColor = pct > 30 ? 'var(--red)' : pct > 15 ? 'var(--amber)' : 'var(--text)';
+      return `<tr>
+        <td style="font-weight:500">${g.nome}</td>
+        <td>${fmtR(real)}</td>
+        <td style="font-family:'DM Mono',monospace;font-weight:600;color:${pctColor}">${pct.toFixed(1)}%</td>
+        <td>${metaCell}</td>
+        <td>${status}</td>
+        <td>${fmtR(orc)}</td>
+        <td style="color:${varOrc>=0?'var(--green)':'var(--red)'}">${varOrc>=0?'+':''}${fmtR(varOrc,false)}</td>
+      </tr>`;
+    }).join('');
+
+    const totReal = gruposRows.reduce((s,r)=>s+r.real,0) + outros;
+    const totOrc  = gruposRows.reduce((s,r)=>s+r.orc,0);
+    const totPct  = fatTotal ? totReal/fatTotal*100 : 0;
+    const totVar  = totOrc - totReal;
+    if (outros > 0) {
+      tbody.innerHTML += `<tr style="color:var(--amber)">
+        <td>Dedução da Receita</td><td>${fmtR(outros)}</td>
+        <td style="font-family:'DM Mono',monospace">${fatTotal?(outros/fatTotal*100).toFixed(1):'0.0'}%</td>
+        <td colspan="4" style="color:var(--text3)">—</td></tr>`;
+    }
+    tbody.innerHTML += `<tr style="border-top:2px solid var(--border2);font-weight:700;background:var(--surface2)">
+      <td>TOTAL</td><td>${fmtR(totReal)}</td>
+      <td style="font-family:'DM Mono',monospace">${totPct.toFixed(1)}%</td>
+      <td>—</td><td>—</td><td>${fmtR(totOrc)}</td>
+      <td style="color:${totVar>=0?'var(--green)':'var(--red)'}">${totVar>=0?'+':''}${fmtR(totVar,false)}</td>
+    </tr>`;
+  }
+
+  // ── Bloco 2: Evolução mensal fat vs despesas ────────────────────────
+  const tblEvolM = document.getElementById('tblEvolMensal');
+  if (tblEvolM) {
+    const mesesAll = [1,2,3,4,5,6,7,8,9,10,11,12];
+    tblEvolM.querySelector('thead').innerHTML = `<tr>
+      <th style="text-align:left">Indicador</th>
+      ${MESES.map(m=>`<th>${m}</th>`).join('')}
+      <th>Total</th>
+    </tr>`;
+    const fatRow   = fat12.map(v=>v||0);
+    const despRow  = mesesAll.map(m=>Math.abs(REALIZADO.filter(r=>r.ano===ano&&r.mes===m).reduce((s,r)=>s+r.valor,0)));
+    const saldoRow = mesesAll.map((_,i)=>fatRow[i]-despRow[i]);
+    const pctRow   = mesesAll.map((_,i)=>fatRow[i]?(despRow[i]/fatRow[i]*100):0);
+    const totFat   = fatRow.reduce((a,b)=>a+b,0);
+    const totDesp  = despRow.reduce((a,b)=>a+b,0);
+    const totSaldo = totFat-totDesp;
+    const totPct   = totFat?totDesp/totFat*100:0;
+    const rowFat  = '<tr><td style="font-weight:600">Faturamento</td>'+fatRow.map(v=>'<td>'+(v?fmtR(v):'—')+'</td>').join('')+'<td style="font-weight:700">'+fmtR(totFat)+'</td></tr>';
+    const rowDesp = '<tr><td style="font-weight:600">Total Saídas</td>'+despRow.map(v=>'<td>'+(v?fmtR(v):'—')+'</td>').join('')+'<td style="font-weight:700">'+fmtR(totDesp)+'</td></tr>';
+    const rowSaldo= '<tr><td style="font-weight:600">Saldo</td>'+saldoRow.map(v=>'<td style="color:'+(v>=0?'var(--green)':'var(--red)')+';font-weight:600">'+fmtR(Math.abs(v),false)+'</td>').join('')+'<td style="font-weight:700;color:'+(totSaldo>=0?'var(--green)':'var(--red)')+'">'+fmtR(Math.abs(totSaldo),false)+'</td></tr>';
+    const rowPct  = '<tr><td style="font-weight:600">Custo/Fat %</td>'+pctRow.map(v=>'<td style="font-family:monospace;font-weight:600;color:'+(v>150?'var(--red)':v>100?'var(--amber)':'var(--green)')+'">'+(v?v.toFixed(1)+'%':'—')+'</td>').join('')+'<td style="font-weight:700;font-family:monospace;color:'+(totPct>150?'var(--red)':totPct>100?'var(--amber)':'var(--green)')+'">'+totPct.toFixed(1)+'%</td></tr>';
+    tblEvolM.querySelector('tbody').innerHTML = rowFat+rowDesp+rowSaldo+rowPct;
+  }
+
+  // ── Bloco 3: Top fornecedores ───────────────────────────────────────
+  const bodyForn = document.getElementById('bodyFornecedores');
+  if (bodyForn) {
+    const porFant = {};
+    REALIZADO.filter(r=>r.ano===ano&&meses.includes(r.mes)).forEach(r=>{
+      const f = (r.fantasia||'(sem fantasia)').trim();
+      if (!porFant[f]) porFant[f] = {total:0, gid: getGrupoId(r.cod), gnome: getGrupoNome(r.cod)};
+      porFant[f].total += r.valor;
+    });
+    const sorted = Object.entries(porFant).sort((a,b)=>b[1].total-a[1].total);
+    const totDesp = sorted.reduce((s,[,d])=>s+d.total,0);
+    document.getElementById('analFornLabel').textContent = `${sorted.length} fornecedores`;
+    bodyForn.innerHTML = sorted.map(([fant,d],i)=>{
+      const pctFat  = fatTotal ? d.total/fatTotal*100 : 0;
+      const pctDesp = totDesp  ? d.total/totDesp*100  : 0;
+      const bar = `<div style="display:inline-block;width:${Math.min(Math.round(pctDesp*2),80)}px;height:5px;background:var(--accent);border-radius:3px;vertical-align:middle;margin-right:6px;opacity:.5"></div>`;
+      return `<tr>
+        <td style="color:var(--text3);font-size:11px">${i+1}</td>
+        <td style="font-weight:500">${fant}</td>
+        <td style="font-size:11px;color:var(--text2)">${d.gnome}</td>
+        <td>${fmtR(d.total)}</td>
+        <td style="font-family:'DM Mono',monospace;font-size:12px">${pctFat.toFixed(1)}%</td>
+        <td style="white-space:nowrap">${bar}${pctDesp.toFixed(1)}%</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Bloco 4: Evolução % por grupo ──────────────────────────────────
+  const tblEv = document.getElementById('tblEvolucao');
+  if (tblEv) {
+    const mesesAll = [1,2,3,4,5,6,7,8,9,10,11,12];
+    tblEv.querySelector('thead').innerHTML = `<tr>
+      <th style="text-align:left">Grupo</th>
+      ${MESES.map(m=>`<th>${m}</th>`).join('')}
+    </tr>`;
+    const gruposAtivos = GRUPOS_DEF.filter(g =>
+      REALIZADO.some(r=>r.ano===ano&&getGrupoId(r.cod)===g.id)
+    );
+    tblEv.querySelector('tbody').innerHTML = gruposAtivos.map(g => {
+      const cells = mesesAll.map(m => {
+        const fat_m  = fat12[m-1]||0;
+        const real_m = Math.abs(REALIZADO.filter(r=>r.ano===ano&&r.mes===m&&getGrupoId(r.cod)===g.id).reduce((s,r)=>s+r.valor,0));
+        const pct_m  = fat_m ? real_m/fat_m*100 : 0;
+        const meta   = METAS[g.id];
+        const over   = meta && pct_m > meta;
+        return real_m > 0
+          ? `<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;${over?'color:var(--red);font-weight:700':''}">${pct_m.toFixed(1)}%</td>`
+          : `<td style="color:var(--text3);text-align:right;font-size:11px">—</td>`;
+      }).join('');
+      return `<tr><td style="font-weight:500;white-space:nowrap">${g.nome}</td>${cells}</tr>`;
+    }).join('') +
+    // linha faturamento
+    `<tr style="border-top:1px solid var(--border2)">
+      <td style="font-weight:600;color:var(--text2)">Faturamento R$</td>
+      ${fat12.map(v=>`<td style="text-align:right;font-size:11px;font-family:'DM Mono',monospace">${v?fmtR(v):'—'}</td>`).join('')}
+    </tr>`;
+  }
+
+  // ── Bloco 5: Alertas ───────────────────────────────────────────────
+  const alertasEl = document.getElementById('analAlertas');
+  if (!alertasEl) return;
+  const alertas = [];
+
+  // custo/fat
+  if (pctCusto > 100) alertas.push({
+    tipo:'red', titulo:'Saídas acima do faturamento',
+    msg:`Total saídas (${fmtR(despTotal)}) supera o faturamento (${fmtR(fatTotal)}) em ${fmtR(despTotal-fatTotal,false)} — custo/fat de ${pctCusto.toFixed(1)}%.`
+  });
+
+  // grupos acima da meta
+  GRUPOS_DEF.forEach(g => {
+    const meta = METAS[g.id]; if (!meta) return;
+    const real = Math.abs(REALIZADO.filter(r=>r.ano===ano&&meses.includes(r.mes)&&getGrupoId(r.cod)===g.id).reduce((s,r)=>s+r.valor,0));
+    const pct  = fatTotal ? real/fatTotal*100 : 0;
+    if (pct > meta) alertas.push({
+      tipo:'amber', titulo:`${g.nome} acima da meta`,
+      msg:`Realizado ${pct.toFixed(1)}% do faturamento — meta é ${meta}%. Excesso de ${(pct-meta).toFixed(1)}pp = ${fmtR(real - fatTotal*meta/100,false)}.`
+    });
+  });
+
+  // fornecedor concentrado (>15% das despesas)
+  const porFant2 = {};
+  REALIZADO.filter(r=>r.ano===ano&&meses.includes(r.mes)).forEach(r=>{
+    const f=(r.fantasia||'?').trim(); porFant2[f]=(porFant2[f]||0)+r.valor;
+  });
+  const totDesp2 = Object.values(porFant2).reduce((a,b)=>a+b,0);
+  Object.entries(porFant2).sort((a,b)=>b[1]-a[1]).slice(0,3).forEach(([f,v])=>{
+    const pct = totDesp2 ? v/totDesp2*100 : 0;
+    if (pct > 12) alertas.push({
+      tipo:'amber', titulo:`Concentração em ${f}`,
+      msg:`${f} representa ${pct.toFixed(1)}% do total de saídas (${fmtR(v)}). Alta dependência de fornecedor único.`
+    });
+  });
+
+  // meses deficitários
+  const mesesDeficit = [1,2,3,4,5,6,7,8,9,10,11,12].filter(m=>{
+    const f=fat12[m-1]||0; if(!f) return false;
+    const d=Math.abs(REALIZADO.filter(r=>r.ano===ano&&r.mes===m).reduce((s,r)=>s+r.valor,0));
+    return d > f*1.2;
+  });
+  if (mesesDeficit.length > 0) alertas.push({
+    tipo:'amber', titulo:'Meses com déficit acima de 20%',
+    msg:`${mesesDeficit.map(m=>MESES[m-1]).join(', ')} — saídas superaram o faturamento em mais de 20%. Atenção ao caixa nesses períodos.`
+  });
+
+  if (!alertas.length) alertas.push({tipo:'green', titulo:'Sem alertas no período', msg:'Todos os indicadores estão dentro dos parâmetros monitorados.'});
+
+  const cores = {red:'var(--red)', amber:'var(--amber)', green:'var(--green)'};
+  const bgCores = {red:'var(--red-bg)', amber:'var(--amber-bg)', green:'var(--green-bg)'};
+  alertasEl.innerHTML = alertas.map(a=>`
+    <div style="background:${bgCores[a.tipo]};border-left:3px solid ${cores[a.tipo]};border-radius:6px;padding:12px 16px">
+      <div style="font-weight:600;color:${cores[a.tipo]};margin-bottom:4px">${a.titulo}</div>
+      <div style="font-size:13px;color:var(--text2)">${a.msg}</div>
+    </div>`).join('');
+}
+
 function init() {
   const orc = localStorage.getItem(LS_ORC);
   if (orc) ORCADO = JSON.parse(orc);
@@ -544,6 +934,7 @@ function setTab(t, el) {
   el.classList.add('active');
   document.getElementById('filtersBar').style.display = t === 'dashboard' ? 'flex' : 'none';
   if (t === 'orcamento') renderOrcEdit();
+  if (t === 'analise') renderAnalise();
   if (t === 'realizado') renderRealizadoPreview();
   if (t === 'dashboard') {
     const ano = parseInt(document.getElementById('selAno').value) || new Date().getFullYear();
@@ -1359,6 +1750,14 @@ function addAnoToSelects(ano) {
 }
 
 function updateInfos() {
+  // popular select analAno
+  const analAnoSel = document.getElementById('analAno');
+  if (analAnoSel) {
+    const anos = getAnos();
+    const cur = analAnoSel.value;
+    analAnoSel.innerHTML = anos.map(a=>`<option value="${a}">${a}</option>`).join('');
+    if (cur && anos.includes(parseInt(cur))) analAnoSel.value = cur;
+  }
   const anos = Object.keys(ORCADO).sort();
   document.getElementById('infoOrcado').textContent = anos.length ? anos.join(', ') : 'Nenhum';
   const el = document.getElementById('infoRealizado');
