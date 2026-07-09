@@ -1124,7 +1124,7 @@ function execBadge(r, o) {
 // despesas com valores negativos: realizado mais negativo que orçado = ruim (vermelho)
 // varV = orçado - realizado. Se orçado=-100 e realizado=-120, varV=20 (positivo) = gastou mais = VERMELHO
 // Se orçado=-100 e realizado=-80, varV=-20 (negativo) = gastou menos = VERDE
-function varColor(v) { return v <= 0 ? 'var(--green)' : 'var(--red)'; }
+function varColor(v) { return v >= 0 ? 'var(--green)' : 'var(--red)'; }
 
 function renderKPIs(ano, meses) {
   const contas = getContas(ano);
@@ -1225,18 +1225,18 @@ function renderResumo(ano, meses) {
         <td>${c.cod}</td><td>${c.desc}</td>
         <td style="font-size:11px;color:var(--text3)">${gnome}</td>
         <td style="border-left:1px solid var(--border2)">${fmtR(oP)}</td><td>${fmtR(rP)}</td>
-        <td>${vP>=0?'+':'-'}${fmtR(vP)}</td>
+        <td>${vP>=0?'':'-'}${fmtR(vP)}</td>
         <td style="border-left:1px solid var(--border2)">${fmtR(oA)}</td><td>${fmtR(rA)}</td>
-        <td>${vA>=0?'+':'-'}${fmtR(vA)}</td>
+        <td>${vA>=0?'':'-'}${fmtR(vA)}</td>
       </tr>`;
     });
     const vGP=gOP-gRP, vGA=gOA-gRA;
     html += `<tr class="tr-group">
       <td colspan="3">↳ ${gnome}</td>
       <td style="border-left:1px solid var(--border2)">${fmtR(gOP)}</td><td>${fmtR(gRP)}</td>
-      <td style="color:${varColor(vGP)}">${vGP>=0?'+':'-'}${fmtR(vGP)}</td>
+      <td style="color:${varColor(vGP)}">${vGP>=0?'':'-'}${fmtR(vGP)}</td>
       <td style="border-left:1px solid var(--border2)">${fmtR(gOA)}</td><td>${fmtR(gRA)}</td>
-      <td style="color:${varColor(vGA)}">${vGA>=0?'+':'-'}${fmtR(vGA)}</td>
+      <td style="color:${varColor(vGA)}">${vGA>=0?'':'-'}${fmtR(vGA)}</td>
     </tr>`;
   });
 
@@ -1245,9 +1245,9 @@ function renderResumo(ano, meses) {
     const vTP=totOP-totRP, vTA=totOA-totRA;
     html += `<tr class="tr-total"><td colspan="3">TOTAL GERAL</td>
       <td style="border-left:1px solid var(--border2)">${fmtR(totOP)}</td><td>${fmtR(totRP)}</td>
-      <td style="color:${varColor(vTP)}">${vTP>=0?'+':'-'}${fmtR(vTP)}</td>
+      <td style="color:${varColor(vTP)}">${vTP>=0?'':'-'}${fmtR(vTP)}</td>
       <td style="border-left:1px solid var(--border2)">${fmtR(totOA)}</td><td>${fmtR(totRA)}</td>
-      <td style="color:${varColor(vTA)}">${vTA>=0?'+':'-'}${fmtR(vTA)}</td>
+      <td style="color:${varColor(vTA)}">${vTA>=0?'':'-'}${fmtR(vTA)}</td>
     </tr>`;
   }
   document.getElementById('bodyResumo').innerHTML = html;
