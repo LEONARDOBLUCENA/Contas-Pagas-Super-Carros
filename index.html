@@ -1216,8 +1216,8 @@ function renderResumo(ano, meses) {
     const gnome = GRUPOS_DEF.find(g=>g.id===gid)?.nome || 'Dedução da Receita';
     let gOP=0,gRP=0,gOA=0,gRA=0;
     cs.forEach(c => {
-      const oP=getOrcadoPeriodo(c.cod,ano,meses), rP=getRealizadoPeriodo(c.cod,ano,meses);
-      const oA=getOrcadoAcumAte(c.cod,ano,mesAcum), rA=getRealizadoAcumAte(c.cod,ano,mesAcum);
+      const oP=Math.abs(getOrcadoPeriodo(c.cod,ano,meses)), rP=Math.abs(getRealizadoPeriodo(c.cod,ano,meses));
+      const oA=Math.abs(getOrcadoAcumAte(c.cod,ano,mesAcum)), rA=Math.abs(getRealizadoAcumAte(c.cod,ano,mesAcum));
       gOP+=oP; gRP+=rP; gOA+=oA; gRA+=rA;
       totOP+=oP; totRP+=rP; totOA+=oA; totRA+=rA;
       const vP=oP-rP, vA=oA-rA;
