@@ -190,6 +190,7 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 
 <header>
   <div class="logo">SUPER CARROS <span>· Contas Pagas</span></div>
+  <div id="ultimoDia" style="font-size:11px;color:var(--text3);margin-left:16px;white-space:nowrap"></div>
   <nav>
     <button class="tab-btn active" onclick="setTab('dashboard',this)">Dashboard</button>
     <button class="tab-btn" onclick="setTab('realizado',this)">Realizado</button>
@@ -525,6 +526,23 @@ function hideSync() {
   if (el) { el.textContent = '✓ Sincronizado'; el.style.color = 'var(--green)'; setTimeout(() => el.style.opacity='0', 2000); }
 }
 
+function atualizarUltimoDia() {
+  const el = document.getElementById('ultimoDia');
+  if (!el || !REALIZADO.length) return;
+  // encontra a data de pagto mais recente
+  let maxData = null;
+  REALIZADO.forEach(r => {
+    if (!r.dtPgto) return;
+    const partes = r.dtPgto.split('/');
+    if (partes.length < 3) return;
+    const d = new Date(+partes[2], +partes[1]-1, +partes[0]);
+    if (!maxData || d > maxData) maxData = d;
+  });
+  if (!maxData) return;
+  const fmt = maxData.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  el.textContent = '📅 Dados até ' + fmt;
+}
+
 // ── LOAD ────────────────────────────────────────────────────────────────
 async function loadAll() {
   showSync('⟳ Carregando...', 'var(--amber)');
@@ -541,6 +559,7 @@ async function loadAll() {
     const metaJson = await meta.json();
     _dataSHA = metaJson.sha;
     hideSync();
+    atualizarUltimoDia();
   } catch(e) {
     showSync('✗ Erro ao carregar', 'var(--red)');
     console.error('loadAll:', e);
@@ -1525,6 +1544,7 @@ function importRealizado() {
   renderRealizadoPreview();
   showMsg('msgRealizado',`✓ ${ok} registros adicionados (${semCod+semData+semValor} ignorados). Total: ${REALIZADO.length}.`,'ok');
   document.getElementById('txtRealizado').value='';
+  atualizarUltimoDia();
 }
 
 function exportRealizadoXLSX() {
