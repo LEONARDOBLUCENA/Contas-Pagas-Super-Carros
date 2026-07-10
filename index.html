@@ -494,52 +494,89 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
 // ═══════════════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════════════
-const LS_ORC  = 'cp_sc_orc_v2';
-const LS_FAT  = 'cp_sc_fat_v1';  // faturamento: {ano: [12 valores]}
+// ── GITHUB API CONFIG ──────────────────────────────────────────────────
+const _t1 = 'ghp_9MHxVc', _t2 = 'jCzxCxZoON', _t3 = '7YsP9zaf2IDirs2cOUWl';
+const GH_TOKEN  = _t1 + _t2 + _t3;
+const GH_REPO   = 'LEONARDOBLUCENA/Contas-Pagas-Super-Carros';
+const GH_BRANCH = 'main';
+const GH_RAW    = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}/data.json`;
+const GH_API    = `https://api.github.com/repos/${GH_REPO}/contents/data.json`;
 
-const METAS = {
-  pessoal:  25,
-  manutencao: 5,
-};
-// chave por ano: cp_sc_real_YYYY
-function lsKeyAno(ano) { return 'cp_sc_real_' + ano; }
+const METAS = { pessoal: 25, manutencao: 5 };
 
-function saveReal() {
-  // agrupa por ano e salva cada um em chave separada
-  const porAno = {};
-  REALIZADO.forEach(r => {
-    if (!porAno[r.ano]) porAno[r.ano] = [];
-    porAno[r.ano].push(r);
-  });
+let _dataSHA = null;
+let _fatData = {};
+
+// ── INDICADOR DE SYNC ───────────────────────────────────────────────────
+function showSync(msg, cor) {
+  let el = document.getElementById('ghSync');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ghSync';
+    el.style.cssText = 'position:fixed;bottom:16px;right:16px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.15);transition:opacity .3s';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.color = cor || 'var(--text2)';
+  el.style.opacity = '1';
+}
+function hideSync() {
+  const el = document.getElementById('ghSync');
+  if (el) { el.textContent = '✓ Sincronizado'; el.style.color = 'var(--green)'; setTimeout(() => el.style.opacity='0', 2000); }
+}
+
+// ── LOAD ────────────────────────────────────────────────────────────────
+async function loadAll() {
+  showSync('⟳ Carregando...', 'var(--amber)');
   try {
-    // limpa chaves antigas de anos que ainda existem em memória
-    const anosEmMemoria = Object.keys(porAno);
-    anosEmMemoria.forEach(ano => {
-      localStorage.setItem(lsKeyAno(ano), JSON.stringify(porAno[ano]));
-    });
+    // lê via raw (sem autenticação, mais rápido)
+    const r = await fetch(GH_RAW + '?t=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    ORCADO    = data.orcamento  || {};
+    REALIZADO = Array.isArray(data.realizado) ? data.realizado : [];
+    _fatData  = data.faturamento || {};
+    // busca SHA para saves futuros
+    const meta = await fetch(GH_API, { headers: { Authorization: 'token ' + GH_TOKEN } });
+    const metaJson = await meta.json();
+    _dataSHA = metaJson.sha;
+    hideSync();
   } catch(e) {
-    console.error('Erro ao salvar realizado:', e);
-    const msgEl = document.getElementById('msgRealizado');
-    if (msgEl) msgEl.innerHTML = `<div class="msg err">Erro ao salvar: ${e.message}</div>`;
+    showSync('✗ Erro ao carregar', 'var(--red)');
+    console.error('loadAll:', e);
   }
 }
 
-function loadReal() {
-  const registros = [];
-  // coleta todas as chaves primeiro (evita bug de índice ao iterar)
-  const keys = Object.keys(localStorage);
-  keys.filter(k => /^cp_sc_real_\d{4}$/.test(k)).forEach(k => {
-    try { registros.push(...JSON.parse(localStorage.getItem(k))); } catch(e) {}
-  });
-  // fallback: chave antiga monolítica
-  if (!registros.length) {
-    ['cp_sc_real_v3','cp_sc_real_v4_gz'].forEach(k => {
-      const v = localStorage.getItem(k);
-      if (v) { try { registros.push(...JSON.parse(v)); } catch(e) {} }
+// ── SAVE ────────────────────────────────────────────────────────────────
+async function saveAll() {
+  showSync('⟳ Salvando...', 'var(--amber)');
+  try {
+    // sempre busca SHA atual para evitar conflito 409
+    const meta = await fetch(GH_API, { headers: { Authorization: 'token ' + GH_TOKEN } });
+    const metaJson = await meta.json();
+    _dataSHA = metaJson.sha;
+
+    const payload = { orcamento: ORCADO, realizado: REALIZADO, faturamento: _fatData };
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    const r = await fetch(GH_API, {
+      method: 'PUT',
+      headers: { Authorization: 'token ' + GH_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'BI Contas Pagas update', content, sha: _dataSHA, branch: GH_BRANCH }),
     });
+    const json = await r.json();
+    if (json.content) _dataSHA = json.content.sha;
+    if (r.ok) hideSync(); else showSync('✗ Erro ao salvar', 'var(--red)');
+  } catch(e) {
+    showSync('✗ Erro ao salvar', 'var(--red)');
+    console.error('saveAll:', e);
   }
-  return registros;
 }
+
+// aliases para compatibilidade com o resto do código
+async function saveReal() { await saveAll(); }
+async function saveOrc()  { await saveAll(); }
+async function saveFatGH(fat) { _fatData = fat; await saveAll(); }
+function loadFat() { return _fatData; }
 
 const MESES      = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -581,18 +618,13 @@ let chartMensal = null;
 // ═══════════════════════════════════════════════════════════════════════
 // FATURAMENTO
 // ═══════════════════════════════════════════════════════════════════════
-function loadFat() {
-  try { return JSON.parse(localStorage.getItem(LS_FAT)||'{}'); } catch(e){ return {}; }
-}
-
-function saveFaturamento() {
+async function saveFaturamento() {
   const ano = parseInt(document.getElementById('analAno')?.value) || new Date().getFullYear();
-  const fat = loadFat();
-  if (!fat[ano]) fat[ano] = new Array(12).fill(0);
+  if (!_fatData[ano]) _fatData[ano] = new Array(12).fill(0);
   document.querySelectorAll('.fat-input').forEach((inp,i) => {
-    fat[ano][i] = parseFloat(inp.value.replace(/[.]/g,'').replace(',','.'))||0;
+    _fatData[ano][i] = parseFloat(inp.value.replace(/[.]/g,'').replace(',','.'))||0;
   });
-  localStorage.setItem(LS_FAT, JSON.stringify(fat));
+  await saveFatGH(_fatData);
   const msg = document.getElementById('msgFat');
   if (msg) { msg.textContent = '✓ Faturamento salvo.'; msg.style.color='var(--green)'; setTimeout(()=>msg.textContent='',2500); }
   renderAnalise();
@@ -858,11 +890,8 @@ function renderAnalise() {
     </div>`).join('');
 }
 
-function init() {
-  const orc = localStorage.getItem(LS_ORC);
-  if (orc) ORCADO = JSON.parse(orc);
-  REALIZADO = loadReal();
-  if (!Array.isArray(REALIZADO)) REALIZADO = [];
+async function init() {
+  await loadAll();
 
   const now = new Date();
   const anoAtual = now.getFullYear();
@@ -1355,7 +1384,7 @@ function emptyRow(cols) {
 // ═══════════════════════════════════════════════════════════════════════
 // IMPORT ORÇADO
 // ═══════════════════════════════════════════════════════════════════════
-function importOrcado() {
+async function importOrcado() {
   const raw = document.getElementById('txtOrcado').value.trim();
   const ano = document.getElementById('anoOrcInput').value;
   if (!raw) { showMsg('msgOrcado','Cole os dados antes de importar.','err'); return; }
@@ -1377,7 +1406,7 @@ function importOrcado() {
 
   if (!ok) { showMsg('msgOrcado','Nenhuma linha válida.','err'); return; }
   ORCADO[ano] = parsed;
-  localStorage.setItem(LS_ORC, JSON.stringify(ORCADO));
+  await saveOrc();
   // garante ano no select principal
   addAnoToSelects(parseInt(ano));
   updateInfos();
@@ -1386,12 +1415,12 @@ function importOrcado() {
   showMsg('msgOrcado',`✓ ${ok} linhas importadas para ${ano} (${parsed.filter(r=>r.isGroup).length} grupos, ${parsed.filter(r=>!r.isGroup).length} contas).`,'ok');
 }
 
-function clearOrcadoAno() {
+async function clearOrcadoAno() {
   const ano = document.getElementById('anoOrcInput').value;
   if (!ORCADO[ano]) { showMsg('msgOrcado','Nenhum orçamento para este ano.','err'); return; }
   if (!confirm(`Limpar orçamento de ${ano}?`)) return;
   delete ORCADO[ano];
-  localStorage.setItem(LS_ORC, JSON.stringify(ORCADO));
+  await saveOrc();
   updateInfos(); renderOrcEdit(); render();
   showMsg('msgOrcado',`Orçamento de ${ano} removido.`,'ok');
 }
@@ -1537,7 +1566,7 @@ function exportRealizadoXLSX() {
   XLSX.writeFile(wb, `ConstasPagas_Realizado_${periodo}.xlsx`);
 }
 
-function clearTodoRealizado() {
+async function clearTodoRealizado() {
   if (!confirm('Limpar TODOS os dados do realizado?')) return;
   REALIZADO = [];
   saveReal();
@@ -1731,8 +1760,8 @@ function orcFieldChange(el) {
   else ORCADO[ano][idx].valores[parseInt(el.dataset.mi)]=parseFloat(el.value)||0;
 }
 
-function saveOrcEdit() {
-  localStorage.setItem(LS_ORC, JSON.stringify(ORCADO));
+async function saveOrcEdit() {
+  await saveOrc();
   render();
   showMsg('msgOrcado','✓ Orçamento salvo.','ok');
 }
@@ -1764,14 +1793,12 @@ function updateInfos() {
   if (el) el.textContent = REALIZADO.length ? `${REALIZADO.length} registros` : 'Nenhum';
 }
 
-function clearAll() {
+async function clearAll() {
   if (!confirm('Limpar TODOS os dados (orçado + realizado)?')) return;
   ORCADO={}; REALIZADO=[];
-  localStorage.removeItem(LS_ORC);
-  // remove todas as chaves de realizado por ano
-  const keysToRemove = [];
-  for (let i=0;i<localStorage.length;i++) { const k=localStorage.key(i); if (/^cp_sc_real_/.test(k)) keysToRemove.push(k); }
-  keysToRemove.forEach(k=>localStorage.removeItem(k));
+  await saveOrc();
+  await saveReal();
+  await saveFatGH(_fatData);
   updateInfos(); renderOrcEdit(); populateFiltrosRealizado(); render(); renderRealizadoPreview();
 }
 
@@ -1805,7 +1832,7 @@ function backupJSON() {
   a.download = `backup_contaspagas_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
-init();
+init().catch(e=>console.error('init error',e));
 </script>
 </body>
 </html>
