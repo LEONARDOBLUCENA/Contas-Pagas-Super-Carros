@@ -531,7 +531,7 @@ function hideSync() {
 async function loadAll() {
   showSync('⟳ Carregando...','var(--amber)');
   try {
-    const r = await fetch(GH_API, { headers:{ Authorization:'token '+GH_TOKEN, 'Cache-Control':'no-cache' }});
+    const r = await fetch(GH_API, { headers:{ Authorization:'token '+GH_TOKEN }});
     if (!r.ok) throw new Error('HTTP '+r.status);
     const j = await r.json();
     _dataSHA = j.sha;
