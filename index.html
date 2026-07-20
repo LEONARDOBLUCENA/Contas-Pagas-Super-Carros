@@ -547,17 +547,17 @@ function atualizarUltimoDia() {
 async function loadAll() {
   showSync('⟳ Carregando...', 'var(--amber)');
   try {
-    // lê via raw (sem autenticação, mais rápido)
-    const r = await fetch(GH_RAW + '?t=' + Date.now());
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
-    ORCADO    = data.orcamento  || {};
-    REALIZADO = Array.isArray(data.realizado) ? data.realizado : [];
-    _fatData  = data.faturamento || {};
-    // busca SHA para saves futuros
-    const meta = await fetch(GH_API, { headers: { Authorization: 'token ' + GH_TOKEN } });
+    // lê direto pela API — sem cache, sempre versão mais recente
+    const meta = await fetch(GH_API, {
+      headers: { Authorization: 'token ' + GH_TOKEN, 'Cache-Control': 'no-cache' }
+    });
+    if (!meta.ok) throw new Error('HTTP ' + meta.status);
     const metaJson = await meta.json();
     _dataSHA = metaJson.sha;
+    const data = JSON.parse(decodeURIComponent(escape(atob(metaJson.content.replace(/\n/g,'')))));
+    ORCADO    = data.orcamento   || {};
+    REALIZADO = Array.isArray(data.realizado) ? data.realizado : [];
+    _fatData  = data.faturamento || {};
     hideSync();
     atualizarUltimoDia();
   } catch(e) {
