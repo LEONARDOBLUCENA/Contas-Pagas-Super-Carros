@@ -261,6 +261,10 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
     </div>
   </div>
   <div class="tcard" style="margin-bottom:16px">
+    <div class="tcard-hdr"><h3>Realizado por Grupo — Mês a Mês</h3></div>
+    <div class="tscroll"><table id="tblGrupoMensal"><thead></thead><tbody></tbody></table></div>
+  </div>
+  <div class="tcard" style="margin-bottom:16px">
     <div class="tcard-hdr"><h3>Resumo por Conta</h3></div>
     <div class="tscroll"><table>
       <thead><tr>
@@ -1140,6 +1144,56 @@ function render() {
   renderTop10(ano, meses);
   renderResumo(ano, meses);
   renderCharts(ano, meses);
+  renderGrupoMensal(ano);
+}
+
+// ── Realizado por Grupo — Mês a Mês (usa apenas filtro de Ano) ─────────────
+function renderGrupoMensal(ano) {
+  const tbl = document.getElementById('tblGrupoMensal');
+  if (!tbl) return;
+
+  const mesesComDados = [...new Set(REALIZADO.filter(r => r.ano === ano).map(r => r.mes))].sort((a,b) => a-b);
+  const mesesShow = mesesComDados.length ? mesesComDados : [1,2,3,4,5,6,7,8,9,10,11,12];
+
+  const gruposComOutros = [...GRUPOS_DEF, { id:'outros', nome:'Dedução da Receita' }];
+
+  const rows = gruposComOutros.map(g => {
+    const vals = mesesShow.map(m =>
+      Math.abs(REALIZADO.filter(r => r.ano === ano && r.mes === m && getGrupoId(r.cod) === g.id)
+        .reduce((s,r) => s + r.valor, 0))
+    );
+    const total = vals.reduce((a,b) => a+b, 0);
+    return { nome: g.nome, vals, total };
+  }).filter(r => r.total > 0).sort((a,b) => b.total - a.total);
+
+  if (!rows.length) {
+    tbl.querySelector('thead').innerHTML = '';
+    tbl.querySelector('tbody').innerHTML = '<tr><td style="text-align:center;color:var(--text3);padding:20px">Sem dados para o ano selecionado</td></tr>';
+    return;
+  }
+
+  const totalGeral = rows.reduce((s,r) => s + r.total, 0);
+  const totaisPorMes = mesesShow.map((_,i) => rows.reduce((s,r) => s + r.vals[i], 0));
+
+  tbl.querySelector('thead').innerHTML = `<tr>
+    <th style="text-align:left">Grupo</th>
+    ${mesesShow.map(m => `<th style="text-align:right">${MESES[m-1]}</th>`).join('')}
+    <th style="text-align:right">TOTAL</th>
+    <th style="text-align:right">% do Total</th>
+  </tr>`;
+
+  tbl.querySelector('tbody').innerHTML = rows.map(r => `<tr>
+    <td style="text-align:left;font-weight:500;white-space:nowrap">${r.nome}</td>
+    ${r.vals.map(v => `<td>${v ? fmtR(v) : '—'}</td>`).join('')}
+    <td style="font-weight:700">${fmtR(r.total)}</td>
+    <td style="font-family:'DM Mono',monospace">${totalGeral ? (r.total/totalGeral*100).toFixed(1)+'%' : '—'}</td>
+  </tr>`).join('') +
+  `<tr class="tr-total">
+    <td style="text-align:left">TOTAL GERAL</td>
+    ${totaisPorMes.map(v => `<td>${fmtR(v)}</td>`).join('')}
+    <td>${fmtR(totalGeral)}</td>
+    <td>100.0%</td>
+  </tr>`;
 }
 
 function fmtR(v, abs=true) {
